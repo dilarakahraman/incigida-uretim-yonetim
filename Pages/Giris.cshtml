@@ -1,0 +1,12 @@
+@page
+@model GirisModel
+@{Layout=null;ViewData["Title"]="Panel Girişi";}
+<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Panel Girişi · Üretim Yönetim Sistemi</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/></head>
+<body class="access-body"><main class="access-card"><div class="access-brand"><span class="brand-mark">S</span><div><strong>İNCİ GIDA</strong><small>Üretim Yönetim Sistemi</small></div></div>
+<div class="access-heading"><span>Hoş geldiniz</span><h1>@(Model.RequiresSetup?"Yönetici şifresi oluşturun":"Panele giriş yapın")</h1><p>Yönetim paneli şifreyle korunur. Personel kendi görev ekranından devam eder.</p></div>
+@if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
+<div class="role-grid">
+ @if(Model.RequiresSetup){<form method="post" asp-page-handler="Setup" class="role-card admin-login-form"><strong>İlk yönetici şifresi</strong><label>Şifre<input asp-for="AdminPassword" type="password" autocomplete="new-password"/></label><label>Şifre tekrar<input asp-for="PasswordConfirmation" type="password" autocomplete="new-password"/></label><button class="btn-primary-app" type="submit">Şifreyi oluştur ve giriş yap</button></form>}
+ else{<form method="post" asp-page-handler="Admin" class="role-card admin-login-form"><strong>Yönetici</strong><label>Şifre<input asp-for="AdminPassword" type="password" autocomplete="current-password" autofocus/></label><button class="btn-primary-app" type="submit">Yönetim paneline giriş</button></form>}
+ <form method="post" asp-page-handler="Personnel"><button class="role-card" type="submit"><span class="role-icon">◎</span><strong>Personel</strong><small>Kimliğinizi seçip görev kaydı oluşturun</small><b>Personel seç →</b></button></form>
+</div><p class="access-note">Yönetici şifresi veritabanında güvenli biçimde saklanır.</p></main></body></html>

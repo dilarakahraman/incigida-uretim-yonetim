@@ -1,0 +1,74 @@
+@{
+    var route = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
+    string Active(string page) => route.Equals(page, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    var isAdmin = Context.IsAdmin();
+    var isPersonnel = Context.IsPersonnel();
+    var personnelName = Context.PersonnelName();
+    var taskPage = Context.TaskPage() ?? "/PersonelSec";
+    var homePage = isAdmin ? "/Index" : taskPage;
+}
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · Üretim Yönetim Sistemi</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/dashboard.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" id="sidebar">
+            <a class="brand" href="@homePage"><span class="brand-mark">S</span><span><strong>Üretim Yönetim Sistemi</strong><small>@(isAdmin ? "Yönetici paneli" : "Personel paneli")</small></span></a>
+            <nav class="main-nav" aria-label="Ana menü">
+            @if (isAdmin)
+            {
+                <a class="@Active("/Index")" asp-page="/Index"><span class="nav-icon">⌂</span>Genel Bakış</a>
+                <div class="nav-label">Üretim Yönetim </div>
+                <a class="@Active("/Islama")" asp-page="/Islama"><span class="nav-icon">◫</span>Islama · Soyma</a>
+                <a class="@Active("/Kavurma")" asp-page="/Kavurma"><span class="nav-icon">♨</span>Kavurma</a>
+                <a class="@Active("/Paketleme")" asp-page="/Paketleme"><span class="nav-icon">▣</span>Paketleme</a>
+                <a class="@Active("/Dolum")" asp-page="/Dolum"><span class="nav-icon">▤</span>Dolum</a>
+                <a class="@Active("/Kepek")" asp-page="/Kepek"><span class="nav-icon">≋</span>Kepek</a>
+                <a class="@Active("/ExcelAktar")" asp-page="/ExcelAktar"><span class="nav-icon">⇩</span>Excel Aktar</a>
+                <div class="nav-label">Yönetim</div>
+                <a class="@Active("/Tanimlar")" asp-page="/Tanimlar"><span class="nav-icon">⚙</span>Tanımlar</a>
+            }
+            else if (isPersonnel)
+            {
+                <div class="nav-label">Görevim</div>
+                <a class="active" href="@taskPage"><span class="nav-icon">＋</span>@Context.Session.GetString(AccessSession.TaskNameKey)</a>
+            }
+            </nav>
+            <div class="sidebar-foot"><span class="status-dot"></span><span>@(isAdmin ? "SQL Server · SQLEXPRESS1" : $"#{Context.PersonnelId()} · {personnelName}")</span></div>
+        </aside>
+        <div class="app-main">
+            <header class="topbar">
+                <button class="menu-button" type="button" aria-label="Menüyü aç" onclick="document.body.classList.toggle('menu-open')">☰</button>
+                <div><strong>@ViewData["Title"]</strong><span class="top-date">@DateTime.Today.ToString("dd MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"))</span></div>
+                <div class="top-actions">
+                    <span class="environment">@(isAdmin ? "YÖNETİCİ" : personnelName)</span>
+                    <form method="post" asp-page="/Giris" asp-page-handler="Exit"><button class="exit-button" type="submit">Çıkış</button></form>
+                    <span class="avatar">@(isAdmin ? "Y" : "P")</span>
+                </div>
+            </header>
+            <main class="page-content">
+                @if (TempData["Success"] is string success)
+                {
+                    <div class="notice success" role="status">@success</div>
+                }
+                @if (TempData["Error"] is string error)
+                {
+                    <div class="notice error" role="alert">@error</div>
+                }
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

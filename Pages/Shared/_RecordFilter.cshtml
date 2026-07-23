@@ -1,0 +1,18 @@
+@model SusamUretim.Web.Models.RecordFilter
+<form method="get" class="record-filter">
+    <label class="filter-search">Arama
+        <input name="Filter.Search" value="@Model.Search" placeholder="Parti, ürün, personel..." autocomplete="off" />
+    </label>
+    <label>Başlangıç
+        <input name="Filter.From" value="@(Model.From?.ToString("yyyy-MM-dd"))" type="date" />
+    </label>
+    <label>Bitiş
+        <input name="Filter.To" value="@(Model.To?.ToString("yyyy-MM-dd"))" type="date" />
+    </label>
+    <button class="btn-primary-app" type="submit">Filtrele</button>
+    @if (Model.IsActive)
+    {
+        <a class="filter-clear" href="@Context.Request.Path">Temizle</a>
+    }
+</form>
+

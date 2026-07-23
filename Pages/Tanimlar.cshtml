@@ -1,0 +1,18 @@
+@page
+@model TanimlarModel
+@{ViewData["Title"]="Tanımlar";}
+@if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
+<section class="definition-toolbar">
+    <form method="post"><label>Tanım türü<select asp-for="Type"><option value="personel">Personel</option><option value="ambalaj">Ambalaj</option></select></label><label>Ad<input asp-for="Name" placeholder="Yeni tanım"/></label><label>Ağırlık <span>kg · yalnızca ambalaj</span><input asp-for="Weight" type="number" step="0.001"/></label><button class="btn-primary-app" type="submit">+ Ekle</button></form>
+    <div asp-validation-summary="All" class="validation"></div>
+</section>
+<section class="personnel-assignments data-section">
+    <div class="section-head">
+        <div><h2>Personel · görev eşleştirmeleri</h2><p>Bir personele birden fazla görev verilebilir</p>
+        </div>
+        <span class="count-badge">@Model.Personnel.Count personel</span>
+    
+   </div><div class="assignment-grid">@foreach(var person in Model.Personnel){<form method="post" asp-page-handler="Task"><input type="hidden" name="personnelId" value="@person.PersonelId"/><span class="person-id">#@person.PersonelId</span><strong>@person.Name</strong><div class="task-checks">@foreach(var task in ProductionTasks.All){<label><input type="checkbox" name="taskNumbers" value="@task.Key" checked="@person.Tasks.Any(x=>x.TaskNumber==task.Key)"/>@task.Value.Name</label>}</div><button class="btn-secondary-app" type="submit">Kaydet</button></form>}</div>
+</section>
+<section class="data-section personnel-status-list"><div class="section-head"><div><h2>Personel Durumu</h2><p>Pasife alınan personelin geçmiş üretim kayıtları silinmez</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Personel</th><th>Durum</th><th></th></tr></thead><tbody>@foreach(var person in Model.PersonnelStatuses){var active=person.Extra=="Aktif";<tr><td><strong>@person.Name</strong></td><td><span class="count-badge">@person.Extra</span></td><td class="num"><form method="post" asp-page-handler="@(active?"DeactivatePersonnel":"ActivatePersonnel")"><input type="hidden" name="personnelId" value="@person.Id"/><button class="@(active?"action-delete":"action-edit")" type="submit">@(active?"Pasife al":"Aktifleştir")</button></form></td></tr>}</tbody></table></div></section>
+<section class="definition-grid definitions-without-personnel">@foreach(var group in Model.Groups.Where(x=>x.Key!="Personeller")){<article><header><h2>@group.Key</h2><span>@group.Value.Count</span></header><ul>@foreach(var item in group.Value){<li><span>@item.Name</span>@if(item.Value is decimal value){<small>@value.ToString("0.###") kg</small>}</li>}</ul></article>}</section>

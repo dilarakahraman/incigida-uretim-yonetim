@@ -1,0 +1,40 @@
+@page
+@model ExcelAktarModel
+@{ ViewData["Title"] = "Excel Aktar"; }
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="notice error"><strong>Aktarım tamamlanamadı.</strong><span>@Model.ErrorMessage</span></div>
+}
+
+<div class="export-layout">
+    <section class="data-section export-main">
+        <div class="section-head">
+            <div><h2>SQL kayıtlarını Excel'e aktar</h2><p>Yalnızca daha önce aktarılmamış arayüz kayıtları eklenir</p></div>
+        </div>
+        <form method="post" class="export-form">
+            <div asp-validation-summary="ModelOnly" class="validation"></div>
+            <div class="field-row">
+                <label>Başlangıç tarihi<input asp-for="Baslangic" type="date" /></label>
+                <label>Bitiş tarihi<input asp-for="Bitis" type="date" /></label>
+            </div>
+            <button class="btn-primary-app" type="submit">Excel'e aktar</button>
+        </form>
+    </section>
+
+    <aside class="export-side">
+        <div><span>Hedef dosya</span><strong>@System.IO.Path.GetFileName(Model.WorkbookPath)</strong><small>@Model.WorkbookPath</small></div>
+        <div><span>Aktarım düzeni</span><strong>Haftalık sayfalar</strong><small>Sayfa yoksa şablondan otomatik oluşturulur.</small></div>
+        <div><span>Tekrar koruması</span><strong>Etkin</strong><small>Aynı SQL kaydı ikinci kez yazılmaz.</small></div>
+    </aside>
+</div>
+
+@if (Model.Result is { RecordCount: > 0 } result)
+{
+    <section class="export-result">
+        <div><span>Aktarılan kayıt</span><strong>@result.RecordCount</strong></div>
+        <div><span>Hafta sayfası</span><strong>@result.SheetCount</strong></div>
+        <div><span>Yedek</span><strong>@System.IO.Path.GetFileName(result.BackupPath)</strong></div>
+    </section>
+}
+
