@@ -6,7 +6,7 @@ using SusamUretim.Web.Services;
 
 namespace SusamUretim.Web.Pages;
 
-public sealed class IslamaModel(SusamRepository repository,ExcelExportService excel) : PageModel
+public sealed class IslamaModel(SusamRepository repository) : PageModel
 {
     [BindProperty] public IslamaInput Input { get; set; } = new() { SoymaBaslangici=DateTime.Now, SoymaBitisi=DateTime.Now.AddHours(6) };
     [BindProperty(SupportsGet=true)] public RecordFilter Filter { get; set; } = new();
@@ -54,5 +54,5 @@ public sealed class IslamaModel(SusamRepository repository,ExcelExportService ex
         return RedirectToPage();
     }
 
-    private async Task LoadAsync(){try{Records=await repository.GetIslamaAsync(filter:Filter);Menseiler=excel.FilterOrigins(await repository.GetMenseilerAsync());Urunler=excel.FilterProducts(await repository.GetUrunlerAsync());Personeller=await repository.GetPersonellerAsync();}catch(Exception ex){ErrorMessage=ex.Message;}}
+    private async Task LoadAsync(){try{if(IsAdmin)Records=await repository.GetIslamaAsync(filter:Filter);Menseiler=await repository.GetMenseilerAsync();Urunler=await repository.GetUrunlerAsync();Personeller=await repository.GetPersonellerAsync();}catch(Exception ex){ErrorMessage=ex.Message;}}
 }

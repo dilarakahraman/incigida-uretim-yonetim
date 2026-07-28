@@ -2,11 +2,12 @@
 @model IslamaModel
 @{ViewData["Title"]="Islama · Soyma";}
 @if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
-<div class="workspace-grid">
+<div class="@(Model.IsAdmin?"workspace-grid":"personnel-entry")">
+@if(Model.IsAdmin){
 <section class="data-section"><div class="section-head"><div><h2>Kayıtlar</h2><p>Son 100 ıslama-soyma işlemi</p></div><span class="count-badge">@Model.Records.Count kayıt</span></div><partial name="Shared/_RecordFilter" model="Model.Filter"/><div class="table-wrap"><table class="data-table"><thead><tr><th>Parti</th><th>Tarih</th><th>Menşei · Ürün</th><th>Silo</th><th class="num">Çekilen</th><th class="num">Süre</th><th></th></tr></thead><tbody>
-@foreach(var x in Model.Records){<tr><td><strong>@x.PartiNo</strong></td><td>@x.SoymaBaslangici.ToString("dd.MM.yyyy HH:mm")</td><td>@x.Mensei<br/><small>@x.Urun</small></td><td>@(x.Silo??"—")</td><td class="num"><strong>@x.CekilenTonajKg.ToString("0.###") kg</strong></td><td class="num">@x.SoymaSuresiDakika dk</td><td>@if(Model.IsAdmin){<div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></div>}</td></tr>}
+@foreach(var x in Model.Records){<tr><td><strong>@x.PartiNo</strong></td><td>@x.SoymaBitisi.ToString("dd.MM.yyyy HH:mm")</td><td>@x.Mensei<br/><small>@x.Urun</small></td><td>@(x.Silo??"—")</td><td class="num"><strong>@x.CekilenTonajKg.ToString("0.###") kg</strong></td><td class="num">@x.SoymaSuresiDakika dk</td><td>@if(Model.IsAdmin){<div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></div>}</td></tr>}
 @if(Model.Records.Count==0){<tr><td colspan="7" class="empty">Henüz görüntülenecek kayıt yok.</td></tr>}
-</tbody></table></div></section>
+</tbody></table></div></section>}
 <aside class="entry-panel"><div class="panel-head"><h2>@(Model.EditId is>0?"Kaydı düzenle":Model.IsAdmin?"Yeni kayıt":"Görev kaydı")</h2><span>@(Model.IsAdmin?"Islama · Soyma":Model.PersonnelName)</span></div><form method="post" class="entry-form"><input asp-for="EditId" type="hidden"/><div asp-validation-summary="All" class="validation"></div>
 @if(Model.EditId is>0){<div class="edit-banner"><span>#@Model.EditId numaralı kayıt düzenleniyor</span><a asp-page="/Islama">İptal</a></div>}
 <div class="field-row"><label>Parti no (otomatik)<input asp-for="Input.PartiNo" readonly data-persisted="@(Model.EditId is > 0 ? "true" : "false")"/></label><label>Barkod seri<input asp-for="Input.BarkodSeri"/></label></div>

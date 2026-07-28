@@ -1,18 +1,111 @@
 @page
 @model TanimlarModel
 @{ViewData["Title"]="Tanımlar";}
+
 @if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
-<section class="definition-toolbar">
-    <form method="post"><label>Tanım türü<select asp-for="Type"><option value="personel">Personel</option><option value="ambalaj">Ambalaj</option></select></label><label>Ad<input asp-for="Name" placeholder="Yeni tanım"/></label><label>Ağırlık <span>kg · yalnızca ambalaj</span><input asp-for="Weight" type="number" step="0.001"/></label><button class="btn-primary-app" type="submit">+ Ekle</button></form>
-    <div asp-validation-summary="All" class="validation"></div>
-</section>
+<div asp-validation-summary="All" class="validation definition-validation"></div>
+
 <section class="personnel-assignments data-section">
     <div class="section-head">
-        <div><h2>Personel · görev eşleştirmeleri</h2><p>Bir personele birden fazla görev verilebilir</p>
-        </div>
+        <div><h2>Personel · görev eşleştirmeleri</h2><p>Bir personele birden fazla görev verilebilir</p></div>
         <span class="count-badge">@Model.Personnel.Count personel</span>
-    
-   </div><div class="assignment-grid">@foreach(var person in Model.Personnel){<form method="post" asp-page-handler="Task"><input type="hidden" name="personnelId" value="@person.PersonelId"/><span class="person-id">#@person.PersonelId</span><strong>@person.Name</strong><div class="task-checks">@foreach(var task in ProductionTasks.All){<label><input type="checkbox" name="taskNumbers" value="@task.Key" checked="@person.Tasks.Any(x=>x.TaskNumber==task.Key)"/>@task.Value.Name</label>}</div><button class="btn-secondary-app" type="submit">Kaydet</button></form>}</div>
+    </div>
+    <form method="post" class="definition-inline-add personnel-definition-add">
+        <input type="hidden" name="Type" value="personel"/>
+        <label>Yeni personel<input name="Name" maxlength="100" placeholder="Ad soyad" required/></label>
+        <button class="btn-primary-app" type="submit">+ Personel ekle</button>
+    </form>
+    <div class="assignment-grid">
+    @foreach(var person in Model.Personnel)
+    {
+        <form method="post" asp-page-handler="Task">
+            <input type="hidden" name="personnelId" value="@person.PersonelId"/>
+            <span class="person-id">#@person.PersonelId</span>
+            <strong>@person.Name</strong>
+            <div class="task-checks">
+            @foreach(var task in ProductionTasks.All)
+            {
+                <label><input type="checkbox" name="taskNumbers" value="@task.Key" checked="@person.Tasks.Any(x=>x.TaskNumber==task.Key)"/>@task.Value.Name</label>
+            }
+            </div>
+            <button class="btn-secondary-app" type="submit">Kaydet</button>
+        </form>
+    }
+    </div>
 </section>
-<section class="data-section personnel-status-list"><div class="section-head"><div><h2>Personel Durumu</h2><p>Pasife alınan personelin geçmiş üretim kayıtları silinmez</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Personel</th><th>Durum</th><th></th></tr></thead><tbody>@foreach(var person in Model.PersonnelStatuses){var active=person.Extra=="Aktif";<tr><td><strong>@person.Name</strong></td><td><span class="count-badge">@person.Extra</span></td><td class="num"><form method="post" asp-page-handler="@(active?"DeactivatePersonnel":"ActivatePersonnel")"><input type="hidden" name="personnelId" value="@person.Id"/><button class="@(active?"action-delete":"action-edit")" type="submit">@(active?"Pasife al":"Aktifleştir")</button></form></td></tr>}</tbody></table></div></section>
-<section class="definition-grid definitions-without-personnel">@foreach(var group in Model.Groups.Where(x=>x.Key!="Personeller")){<article><header><h2>@group.Key</h2><span>@group.Value.Count</span></header><ul>@foreach(var item in group.Value){<li><span>@item.Name</span>@if(item.Value is decimal value){<small>@value.ToString("0.###") kg</small>}</li>}</ul></article>}</section>
+
+<section class="data-section personnel-status-list">
+    <div class="section-head"><div><h2>Personel Durumu</h2><p>Pasife alınan personelin geçmiş üretim kayıtları silinmez</p></div></div>
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>Personel</th><th>Durum</th><th></th></tr></thead>
+            <tbody>
+            @foreach(var person in Model.PersonnelStatuses)
+            {
+                var active=person.Extra=="Aktif";
+                <tr>
+                    <td><strong>@person.Name</strong></td>
+                    <td><span class="count-badge">@person.Extra</span></td>
+                    <td class="num">
+                        <form method="post" asp-page-handler="@(active?"DeactivatePersonnel":"ActivatePersonnel")">
+                            <input type="hidden" name="personnelId" value="@person.Id"/>
+                            <button class="@(active?"action-delete":"action-edit")" type="submit">@(active?"Pasife al":"Aktifleştir")</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@{
+    var definitionCards = new[]
+    {
+        new { Key="Ürünler", Type="urun", Label="Yeni ürün", Placeholder="Örn. Pastalık", HasWeight=false },
+        new { Key="Menşeiler", Type="mensei", Label="Yeni menşei", Placeholder="Örn. Mali", HasWeight=false },
+        new { Key="Ambalajlar", Type="ambalaj", Label="Yeni ambalaj", Placeholder="Örn. TENEKE", HasWeight=true }
+    };
+}
+<section class="definition-grid definitions-without-personnel">
+@foreach(var card in definitionCards)
+{
+    var items=Model.Groups.TryGetValue(card.Key,out var values)?values:[];
+    <article>
+        <header><h2>@card.Key</h2><span>@items.Count</span></header>
+        <form method="post" class="definition-inline-add definition-card-add">
+            <input type="hidden" name="Type" value="@card.Type"/>
+            <label>@card.Label<input name="Name" maxlength="100" placeholder="@card.Placeholder" required/></label>
+            @if(card.HasWeight)
+            {
+                <label>Ağırlık (kg)<input name="Weight" type="number" min="0.001" step="0.001" placeholder="19" required/></label>
+            }
+            <button class="btn-primary-app" type="submit">+ Ekle</button>
+        </form>
+        <ul>
+        @foreach(var item in items)
+        {
+            <li>
+                <form method="post" asp-page-handler="UpdateDefinition" class="definition-edit-form">
+                    <input type="hidden" name="type" value="@card.Type"/>
+                    <input type="hidden" name="id" value="@item.Id"/>
+                    <input name="name" value="@item.Name" maxlength="100" aria-label="Tanım adı" required/>
+                    @if(card.HasWeight)
+                    {
+                        <input name="weight" value="@item.Value?.ToString("0.###",System.Globalization.CultureInfo.InvariantCulture)" type="number" min="0.001" step="0.001" aria-label="Ağırlık (kg)" required/>
+                    }
+                    <button class="action-edit" type="submit">Değişiklikleri Kaydet</button>
+                </form>
+                <div class="definition-item-actions">
+                    <form method="post" asp-page-handler="DeleteDefinition" onsubmit="return confirm('Bu tanım kaldırılsın mı? Geçmiş kayıtlar korunacaktır.');">
+                        <input type="hidden" name="type" value="@card.Type"/>
+                        <input type="hidden" name="id" value="@item.Id"/>
+                        <button class="action-delete" type="submit">Sil</button>
+                    </form>
+                </div>
+            </li>
+        }
+        </ul>
+    </article>
+}
+</section>

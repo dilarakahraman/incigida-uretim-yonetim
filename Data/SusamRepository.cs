@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Globalization;
 using System.Text;
 using Microsoft.Data.SqlClient;
@@ -9,7 +9,7 @@ namespace SusamUretim.Web.Data;
 public sealed class SusamRepository(IConfiguration configuration)
 {
     private readonly string _connectionString = configuration.GetConnectionString("SusamUretim")
-        ?? throw new InvalidOperationException("SusamUretim connection string bulunamadı.");
+        ?? throw new InvalidOperationException("SusamUretim connection string bulunamadÄ±.");
 
     private SqlConnection CreateConnection() => new(_connectionString);
 
@@ -20,11 +20,19 @@ public sealed class SusamRepository(IConfiguration configuration)
                 EXEC(N'ALTER TABLE uretim.IslamaSoymaKaydi ADD Silo1 varchar(2) NULL;');
             IF COL_LENGTH(N'uretim.IslamaSoymaKaydi',N'Silo2') IS NULL
                 EXEC(N'ALTER TABLE uretim.IslamaSoymaKaydi ADD Silo2 varchar(2) NULL;');
+            IF COL_LENGTH(N'uretim.IslamaSoymaKaydi',N'RaporTarihi') IS NULL
+                EXEC(N'ALTER TABLE uretim.IslamaSoymaKaydi ADD RaporTarihi date NULL;');
+            UPDATE uretim.IslamaSoymaKaydi
+            SET RaporTarihi=DATEADD(day,-(DATEDIFF(day,CONVERT(date,'19000101',112),CONVERT(date,SoymaBitisi)) % 7),CONVERT(date,SoymaBitisi))
+            WHERE SoymaBitisi IS NOT NULL
+              AND (RaporTarihi IS NULL OR RaporTarihi<>DATEADD(day,-(DATEDIFF(day,CONVERT(date,'19000101',112),CONVERT(date,SoymaBitisi)) % 7),CONVERT(date,SoymaBitisi)));
             """, _ => { });
 
         await ExecuteAsync("""
             IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_IslamaSoymaKaydi_SoymaBitisi' AND object_id=OBJECT_ID(N'uretim.IslamaSoymaKaydi'))
                 CREATE INDEX IX_IslamaSoymaKaydi_SoymaBitisi ON uretim.IslamaSoymaKaydi(SoymaBitisi) INCLUDE(UrunId,MenseiId,CekilenTonajKg,CopKg);
+            IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_IslamaSoymaKaydi_RaporTarihi' AND object_id=OBJECT_ID(N'uretim.IslamaSoymaKaydi'))
+                CREATE INDEX IX_IslamaSoymaKaydi_RaporTarihi ON uretim.IslamaSoymaKaydi(RaporTarihi) INCLUDE(UrunId,MenseiId,CekilenTonajKg,CopKg,NobetTarihi);
             IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_KavurmaKaydi_Tarih' AND object_id=OBJECT_ID(N'uretim.KavurmaKaydi'))
                 CREATE INDEX IX_KavurmaKaydi_Tarih ON uretim.KavurmaKaydi(Tarih) INCLUDE(UrunId,MenseiId,NetTonajKg,EklenenSorteksAltiKg,TavaSayisi);
             IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE name=N'IX_PaketlemeKaydi_Tarih' AND object_id=OBJECT_ID(N'uretim.PaketlemeKaydi'))
@@ -52,11 +60,14 @@ public sealed class SusamRepository(IConfiguration configuration)
         await ExecuteAsync("""
             MERGE tanim.Gorev AS target
             USING (VALUES
-                (CONVERT(tinyint,1),'Islama',N'Islama · Soyma','/Islama'),
+                (CONVERT(tinyint,1),'Islama',N'Islama '+NCHAR(183)+N' Soyma','/Islama'),
                 (CONVERT(tinyint,2),'Kavurma',N'Kavurma','/Kavurma'),
                 (CONVERT(tinyint,3),'Paketleme',N'Paketleme','/Paketleme'),
                 (CONVERT(tinyint,4),'Dolum',N'Dolum','/Dolum'),
-                (CONVERT(tinyint,5),'Kepek',N'Kepek','/Kepek')) AS source(GorevNo,Kod,Ad,Sayfa)
+                (CONVERT(tinyint,5),'Kepek',N'Kepek','/Kavurma'),
+                (CONVERT(tinyint,6),'Degirmen',N'De'+NCHAR(287)+N'irmen','/Degirmen'),
+                (CONVERT(tinyint,7),'Kurutma',N'Kurutma','/Kurutma'),
+                (CONVERT(tinyint,8),'Cop',NCHAR(199)+NCHAR(246)+N'p','/Cop')) AS source(GorevNo,Kod,Ad,Sayfa)
             ON target.GorevNo=source.GorevNo
             WHEN MATCHED THEN UPDATE SET Kod=source.Kod,Ad=source.Ad,Sayfa=source.Sayfa,Aktif=1
             WHEN NOT MATCHED THEN INSERT(GorevNo,Kod,Ad,Sayfa) VALUES(source.GorevNo,source.Kod,source.Ad,source.Sayfa);
@@ -67,6 +78,7 @@ public sealed class SusamRepository(IConfiguration configuration)
             IF COL_LENGTH('uretim.IslamaSoymaKaydi','PersonelId') IS NULL ALTER TABLE uretim.IslamaSoymaKaydi ADD PersonelId int NULL;
             IF COL_LENGTH('uretim.DolumKaydi','PersonelId') IS NULL ALTER TABLE uretim.DolumKaydi ADD PersonelId int NULL;
             IF COL_LENGTH('uretim.KepekKaydi','PersonelId') IS NULL ALTER TABLE uretim.KepekKaydi ADD PersonelId int NULL;
+            IF COL_LENGTH('uretim.KavurmaKaydi','KepekKg') IS NULL ALTER TABLE uretim.KavurmaKaydi ADD KepekKg decimal(18,3) NULL;
             IF COL_LENGTH('uretim.PaketlemeKaydi','FireKg') IS NULL ALTER TABLE uretim.PaketlemeKaydi ADD FireKg decimal(18,3) NULL;
             IF COL_LENGTH('uretim.DolumKaydi','FireKg') IS NULL ALTER TABLE uretim.DolumKaydi ADD FireKg decimal(18,3) NULL;
             IF OBJECT_ID(N'tanim.UygulamaAyari',N'U') IS NULL
@@ -98,6 +110,101 @@ public sealed class SusamRepository(IConfiguration configuration)
                 ALTER TABLE uretim.DolumKaydi WITH CHECK ADD CONSTRAINT FK_DolumKaydi_Personel FOREIGN KEY(PersonelId) REFERENCES tanim.Personel(PersonelId);
             IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_KepekKaydi_Personel')
                 ALTER TABLE uretim.KepekKaydi WITH CHECK ADD CONSTRAINT FK_KepekKaydi_Personel FOREIGN KEY(PersonelId) REFERENCES tanim.Personel(PersonelId);
+            """, _ => { });
+
+        await ExecuteAsync("UPDATE tanim.Gorev SET Aktif=0 WHERE GorevNo=5;",_=>{});
+
+        await ExecuteAsync("""
+            IF OBJECT_ID(N'uretim.DegirmenNobeti',N'U') IS NULL
+            BEGIN
+                CREATE TABLE uretim.DegirmenNobeti
+                (
+                    DegirmenNobetId bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_DegirmenNobeti PRIMARY KEY,
+                    Tarih date NOT NULL,
+                    Nobet nvarchar(30) NOT NULL,
+                    PersonelId int NOT NULL,
+                    Aciklama nvarchar(1000) NULL,
+                    OlusturmaZamani datetime2(0) NOT NULL CONSTRAINT DF_DegirmenNobeti_Zaman DEFAULT(SYSDATETIME()),
+                    Olusturan nvarchar(128) NULL,
+                    CONSTRAINT FK_DegirmenNobeti_Personel FOREIGN KEY(PersonelId) REFERENCES tanim.Personel(PersonelId)
+                );
+                CREATE INDEX IX_DegirmenNobeti_Tarih ON uretim.DegirmenNobeti(Tarih);
+            END;
+            IF OBJECT_ID(N'uretim.DegirmenKaydi',N'U') IS NULL
+            BEGIN
+                CREATE TABLE uretim.DegirmenKaydi
+                (
+                    DegirmenKaydiId bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_DegirmenKaydi PRIMARY KEY,
+                    DegirmenNobetId bigint NOT NULL,
+                    SatirNo int NOT NULL,
+                    FirinNoSergen nvarchar(100) NOT NULL,
+                    MenseiId int NOT NULL,
+                    PureMiktariKg decimal(18,3) NOT NULL,
+                    InceltilenMiktarKg decimal(18,3) NOT NULL,
+                    TransferEdilenTank nvarchar(100) NOT NULL,
+                    CONSTRAINT FK_DegirmenKaydi_Nobet FOREIGN KEY(DegirmenNobetId) REFERENCES uretim.DegirmenNobeti(DegirmenNobetId) ON DELETE CASCADE,
+                    CONSTRAINT FK_DegirmenKaydi_Mensei FOREIGN KEY(MenseiId) REFERENCES tanim.Mensei(MenseiId),
+                    CONSTRAINT UQ_DegirmenKaydi_Satir UNIQUE(DegirmenNobetId,SatirNo)
+                );
+            END;
+
+            IF OBJECT_ID(N'uretim.KurutmaNobeti',N'U') IS NULL
+            BEGIN
+                CREATE TABLE uretim.KurutmaNobeti
+                (
+                    KurutmaNobetId bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_KurutmaNobeti PRIMARY KEY,
+                    Tarih date NOT NULL,
+                    Nobet nvarchar(30) NOT NULL,
+                    PersonelId int NOT NULL,
+                    Aciklama nvarchar(1000) NULL,
+                    OlusturmaZamani datetime2(0) NOT NULL CONSTRAINT DF_KurutmaNobeti_Zaman DEFAULT(SYSDATETIME()),
+                    Olusturan nvarchar(128) NULL,
+                    CONSTRAINT FK_KurutmaNobeti_Personel FOREIGN KEY(PersonelId) REFERENCES tanim.Personel(PersonelId)
+                );
+                CREATE INDEX IX_KurutmaNobeti_Tarih ON uretim.KurutmaNobeti(Tarih);
+            END;
+            IF OBJECT_ID(N'uretim.KurutmaKaydi',N'U') IS NULL
+            BEGIN
+                CREATE TABLE uretim.KurutmaKaydi
+                (
+                    KurutmaKaydiId bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_KurutmaKaydi PRIMARY KEY,
+                    KurutmaNobetId bigint NOT NULL,
+                    SatirNo int NOT NULL,
+                    MenseiId int NOT NULL,
+                    UrunId int NOT NULL,
+                    YikamaSayisi int NOT NULL,
+                    KirecKg decimal(18,3) NOT NULL,
+                    MakineSayisi int NOT NULL,
+                    CONSTRAINT FK_KurutmaKaydi_Nobet FOREIGN KEY(KurutmaNobetId) REFERENCES uretim.KurutmaNobeti(KurutmaNobetId) ON DELETE CASCADE,
+                    CONSTRAINT FK_KurutmaKaydi_Mensei FOREIGN KEY(MenseiId) REFERENCES tanim.Mensei(MenseiId),
+                    CONSTRAINT FK_KurutmaKaydi_Urun FOREIGN KEY(UrunId) REFERENCES tanim.Urun(UrunId),
+                    CONSTRAINT UQ_KurutmaKaydi_Satir UNIQUE(KurutmaNobetId,SatirNo)
+                );
+            END;
+
+            IF OBJECT_ID(N'uretim.CopKaydi',N'U') IS NULL
+            BEGIN
+                CREATE TABLE uretim.CopKaydi
+                (
+                    CopKaydiId bigint IDENTITY(1,1) NOT NULL CONSTRAINT PK_CopKaydi PRIMARY KEY,
+                    Tarih date NOT NULL,
+                    MenseiId int NOT NULL,
+                    CopKg decimal(18,3) NOT NULL,
+                    OlusturmaZamani datetime2(0) NOT NULL CONSTRAINT DF_CopKaydi_OlusturmaZamani DEFAULT(SYSDATETIME()),
+                    Olusturan nvarchar(128) NULL,
+                    CONSTRAINT FK_CopKaydi_Mensei FOREIGN KEY(MenseiId) REFERENCES tanim.Mensei(MenseiId),
+                    CONSTRAINT CK_CopKaydi_CopKg CHECK(CopKg>=0)
+                );
+                CREATE INDEX IX_CopKaydi_Tarih ON uretim.CopKaydi(Tarih);
+            END;
+
+            INSERT tanim.PersonelGorev(PersonelId,GorevNo)
+            SELECT P.PersonelId,G.GorevNo
+            FROM tanim.Personel P
+            CROSS JOIN tanim.Gorev G
+            WHERE UPPER(LTRIM(RTRIM(P.AdSoyad))) IN (N'ABDULLAH SOYER',N'ALÄ° Ã–ÄžDÃœ')
+              AND G.GorevNo IN (6,7,8)
+              AND NOT EXISTS(SELECT 1 FROM tanim.PersonelGorev PG WHERE PG.PersonelId=P.PersonelId AND PG.GorevNo=G.GorevNo);
             """, _ => { });
     }
 
@@ -217,22 +324,35 @@ public sealed class SusamRepository(IConfiguration configuration)
         const string sql = """
             DECLARE @End date=DATEADD(DAY,1,COALESCE(@To,CONVERT(date,GETDATE())));
             DECLARE @Start date=COALESCE(@From,DATEADD(DAY,-29,@End));
+            DECLARE @Kavurma TABLE
+            (
+              KavurmaKaydiId bigint,Tarih date,UrunId int,MenseiId int,NetTonajKg decimal(18,3),
+              VerimOrani decimal(18,6),OrtalamaVerimOrani decimal(18,6),TavaSayisi int,
+              ArizaliTavaSayisi int,EklenenSorteksAltiKg decimal(18,3),KepekKg decimal(18,3),PersonelId int
+            );
+            INSERT @Kavurma
+            SELECT K.KavurmaKaydiId,K.Tarih,K.UrunId,K.MenseiId,
+                   K.NetTonajKg,K.VerimOrani,K.OrtalamaVerimOrani,K.TavaSayisi,K.ArizaliTavaSayisi,
+                   K.EklenenSorteksAltiKg,K.KepekKg,K.PersonelId
+            FROM uretim.KavurmaKaydi K;
             SELECT
               (SELECT COUNT(*) FROM uretim.IslamaSoymaKaydi WHERE SoymaBitisi>=@Start AND SoymaBitisi<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
-              (SELECT COUNT(*) FROM uretim.KavurmaKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
+              (SELECT COUNT(*) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
               (SELECT COUNT(*) FROM uretim.PaketlemeKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
               (SELECT COUNT(*) FROM uretim.DolumKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND @Origin IS NULL),
-              (SELECT COUNT(*) FROM uretim.KepekKaydi WHERE Tarih>=@Start AND Tarih<@End AND @Product IS NULL AND @Origin IS NULL),
+              ((SELECT COUNT(*) FROM uretim.KepekKaydi WHERE Tarih>=@Start AND Tarih<@End AND @Product IS NULL AND @Origin IS NULL)
+               +(SELECT COUNT(*) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND COALESCE(KepekKg,0)>0 AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin))),
               (SELECT COALESCE(SUM(CekilenTonajKg),0) FROM uretim.IslamaSoymaKaydi WHERE SoymaBitisi>=@Start AND SoymaBitisi<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
-              (SELECT COALESCE(SUM(NetTonajKg),0) FROM uretim.KavurmaKaydi WHERE Tarih>=@Start AND Tarih<@End AND NetTonajKg>0 AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(NetTonajKg),0) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND NetTonajKg>0 AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
               (SELECT COALESCE(SUM(AmbalajAgirligiKg*Adet),0) FROM uretim.PaketlemeKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
-              (SELECT COALESCE(AVG(NULLIF(VerimOrani,0)),AVG(NULLIF(OrtalamaVerimOrani,0)),0) FROM uretim.KavurmaKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
-              (SELECT COALESCE(SUM(TavaSayisi),0) FROM uretim.KavurmaKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
-              (SELECT COALESCE(SUM(ArizaliTavaSayisi),0) FROM uretim.KavurmaKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
-              (SELECT COALESCE(SUM(EklenenSorteksAltiKg),0) FROM uretim.KavurmaKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
+              (SELECT COALESCE(AVG(NULLIF(VerimOrani,0)),AVG(NULLIF(OrtalamaVerimOrani,0)),0) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(TavaSayisi),0) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(ArizaliTavaSayisi),0) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(EklenenSorteksAltiKg),0) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
               (SELECT COALESCE(SUM(CikanSorteksAltiKg),0) FROM uretim.PaketlemeKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
               (SELECT COALESCE(SUM(CopKg),0) FROM uretim.IslamaSoymaKaydi WHERE SoymaBitisi>=@Start AND SoymaBitisi<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
-              (SELECT COALESCE(SUM(PaketlemeMiktariKg),0) FROM uretim.KepekKaydi WHERE Tarih>=@Start AND Tarih<@End AND @Product IS NULL AND @Origin IS NULL),
+              ((SELECT COALESCE(SUM(PaketlemeMiktariKg),0) FROM uretim.KepekKaydi WHERE Tarih>=@Start AND Tarih<@End AND @Product IS NULL AND @Origin IS NULL)
+               +(SELECT COALESCE(SUM(KepekKg),0) FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin))),
               (SELECT COALESCE(SUM(SoymaSuresiDakika),0) FROM uretim.IslamaSoymaKaydi WHERE SoymaBitisi>=@Start AND SoymaBitisi<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
               (SELECT COALESCE(SUM(Adet),0) FROM uretim.PaketlemeKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)),
               (SELECT COALESCE(SUM(PaketlemeMiktariKg),0) FROM uretim.DolumKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND @Origin IS NULL),
@@ -246,7 +366,7 @@ public sealed class SusamRepository(IConfiguration configuration)
               SELECT Tarih,0,AmbalajAgirligiKg*Adet FROM uretim.PaketlemeKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)
             ) X GROUP BY Gun ORDER BY Gun;
 
-            SELECT COALESCE(U.Ad,N'Tanımsız'),
+            SELECT COALESCE(U.Ad,N'TanÄ±msÄ±z'),
                    SUM(X.GirdiKg) GirdiKg,
                    SUM(X.KavrulmusKg) KavrulmusKg,
                    SUM(X.EklenenSorteksKg) EklenenSorteksKg,
@@ -260,15 +380,15 @@ public sealed class SusamRepository(IConfiguration configuration)
               FROM uretim.IslamaSoymaKaydi WHERE SoymaBitisi>=@Start AND SoymaBitisi<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)
               UNION ALL
               SELECT UrunId,0,CASE WHEN NetTonajKg>0 THEN NetTonajKg ELSE 0 END,COALESCE(EklenenSorteksAltiKg,0),0,0,0
-              FROM uretim.KavurmaKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)
+              FROM @Kavurma WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)
               UNION ALL
               SELECT UrunId,0,0,0,AmbalajAgirligiKg*Adet,COALESCE(CikanSorteksAltiKg,0),0
               FROM uretim.PaketlemeKaydi WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)
             ) X
             LEFT JOIN tanim.Urun U ON U.UrunId=X.UrunId
-            GROUP BY COALESCE(U.Ad,N'Tanımsız')
+            GROUP BY COALESCE(U.Ad,N'TanÄ±msÄ±z')
             HAVING SUM(X.GirdiKg)<>0 OR SUM(X.KavrulmusKg)<>0 OR SUM(X.PaketlenenKg)<>0
-            ORDER BY COALESCE(U.Ad,N'Tanımsız');
+            ORDER BY COALESCE(U.Ad,N'TanÄ±msÄ±z');
 
             SELECT M.Ad,SUM(I.CekilenTonajKg),COUNT(*)
             FROM uretim.IslamaSoymaKaydi I JOIN tanim.Mensei M ON M.MenseiId=I.MenseiId
@@ -288,11 +408,11 @@ public sealed class SusamRepository(IConfiguration configuration)
             WHERE Tarih>=@Start AND Tarih<@End AND (@Product IS NULL OR UrunId=@Product) AND (@Origin IS NULL OR MenseiId=@Origin)
             GROUP BY AmbalajAgirligiKg ORDER BY AmbalajAgirligiKg;
 
-            SELECT COALESCE(P.AdSoyad,N'Tanımsız'),SUM(CASE WHEN K.NetTonajKg>0 THEN K.NetTonajKg ELSE 0 END),
+            SELECT COALESCE(P.AdSoyad,N'TanÄ±msÄ±z'),SUM(CASE WHEN K.NetTonajKg>0 THEN K.NetTonajKg ELSE 0 END),
                    COALESCE(SUM(K.TavaSayisi),0)
-            FROM uretim.KavurmaKaydi K LEFT JOIN tanim.Personel P ON P.PersonelId=K.PersonelId
+            FROM @Kavurma K LEFT JOIN tanim.Personel P ON P.PersonelId=K.PersonelId
             WHERE K.Tarih>=@Start AND K.Tarih<@End AND (@Product IS NULL OR K.UrunId=@Product) AND (@Origin IS NULL OR K.MenseiId=@Origin)
-            GROUP BY COALESCE(P.AdSoyad,N'Tanımsız')
+            GROUP BY COALESCE(P.AdSoyad,N'TanÄ±msÄ±z')
             ORDER BY SUM(CASE WHEN K.NetTonajKg>0 THEN K.NetTonajKg ELSE 0 END) DESC;
             """;
         await using var connection = CreateConnection();
@@ -301,13 +421,14 @@ public sealed class SusamRepository(IConfiguration configuration)
         await using var reader = await command.ExecuteReaderAsync();
         await reader.ReadAsync();
         var counts=new[]{reader.GetInt32(0),reader.GetInt32(1),reader.GetInt32(2),reader.GetInt32(3),reader.GetInt32(4)};
-        var input=reader.GetDecimal(5);var roast=reader.GetDecimal(6);var output=reader.GetDecimal(7);var storedExcelYield=reader.GetDecimal(8);var pans=reader.GetInt32(9);var broken=reader.GetInt32(10);
+        var input=reader.GetDecimal(5);var roast=reader.GetDecimal(6);var output=reader.GetDecimal(7);var pans=reader.GetInt32(9);var broken=reader.GetInt32(10);
         var addedSortex=reader.GetDecimal(11);var packagingSortex=reader.GetDecimal(12);
         var waste=reader.GetDecimal(13);var bran=reader.GetDecimal(14);var peelingMinutes=reader.GetInt32(15);
         var fillingKg=reader.GetDecimal(17);var fillingUnits=reader.GetInt32(18);var fillingPersonnel=reader.GetInt32(19);
         var excelRoastOutput=roast-addedSortex;
-        var netInput=Math.Max(0,input-waste);
-        var grossYield=netInput>0?excelRoastOutput/netInput*100:(storedExcelYield<=2?storedExcelYield*100:storedExcelYield);
+        // HaftalÄ±k randÄ±man: (net kavurma tonajÄ± - eklenen sorteks altÄ±) /
+        // Islama-soyma Ã§ekilen toplam tonajÄ± x 100. Ã‡Ã¶p paydadan dÃ¼ÅŸÃ¼lmez.
+        var grossYield=input>0?excelRoastOutput/input*100:0;
         var netYield=input==0?0:(excelRoastOutput-packagingSortex)/input*100;
         var trend=new List<DashboardTrend>();await reader.NextResultAsync();while(await reader.ReadAsync())trend.Add(new(reader.GetDateTime(0),reader.GetDecimal(1),reader.GetDecimal(2)));
         var productYields=new List<ProductYield>();await reader.NextResultAsync();while(await reader.ReadAsync())
@@ -330,6 +451,84 @@ public sealed class SusamRepository(IConfiguration configuration)
             peelingMinutes==0?0:input/peelingMinutes*60,addedSortex,packagingSortex,packagingYield,
             fillingKg,fillingUnits,fillingPersonnel==0?0:fillingKg/fillingPersonnel,
             bran,branRatio,waste,wasteRatio,grossYield+branRatio+wasteRatio,origins,productOrigins,packagingWeights,personnel);
+    }
+
+    public async Task<ProcessDashboardStats> GetProcessDashboardAsync(
+        DateTime from,DateTime to,int? productId=null,int? originId=null)
+    {
+        const string sql="""
+            DECLARE @End date=DATEADD(day,1,@To);
+
+            SELECT
+              (SELECT COUNT(DISTINCT N.DegirmenNobetId)
+               FROM uretim.DegirmenNobeti N JOIN uretim.DegirmenKaydi K ON K.DegirmenNobetId=N.DegirmenNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND @Product IS NULL AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COUNT(*)
+               FROM uretim.DegirmenNobeti N JOIN uretim.DegirmenKaydi K ON K.DegirmenNobetId=N.DegirmenNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND @Product IS NULL AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(K.PureMiktariKg),0)
+               FROM uretim.DegirmenNobeti N JOIN uretim.DegirmenKaydi K ON K.DegirmenNobetId=N.DegirmenNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND @Product IS NULL AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(K.InceltilenMiktarKg),0)
+               FROM uretim.DegirmenNobeti N JOIN uretim.DegirmenKaydi K ON K.DegirmenNobetId=N.DegirmenNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND @Product IS NULL AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COUNT(DISTINCT N.KurutmaNobetId)
+               FROM uretim.KurutmaNobeti N JOIN uretim.KurutmaKaydi K ON K.KurutmaNobetId=N.KurutmaNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND (@Product IS NULL OR K.UrunId=@Product) AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COUNT(*)
+               FROM uretim.KurutmaNobeti N JOIN uretim.KurutmaKaydi K ON K.KurutmaNobetId=N.KurutmaNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND (@Product IS NULL OR K.UrunId=@Product) AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(K.YikamaSayisi),0)
+               FROM uretim.KurutmaNobeti N JOIN uretim.KurutmaKaydi K ON K.KurutmaNobetId=N.KurutmaNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND (@Product IS NULL OR K.UrunId=@Product) AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(K.KirecKg),0)
+               FROM uretim.KurutmaNobeti N JOIN uretim.KurutmaKaydi K ON K.KurutmaNobetId=N.KurutmaNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND (@Product IS NULL OR K.UrunId=@Product) AND (@Origin IS NULL OR K.MenseiId=@Origin)),
+              (SELECT COALESCE(SUM(K.MakineSayisi),0)
+               FROM uretim.KurutmaNobeti N JOIN uretim.KurutmaKaydi K ON K.KurutmaNobetId=N.KurutmaNobetId
+               WHERE N.Tarih>=@From AND N.Tarih<@End AND (@Product IS NULL OR K.UrunId=@Product) AND (@Origin IS NULL OR K.MenseiId=@Origin));
+
+            WITH Shifts(Nobet,Sira) AS
+            (
+              SELECT N'07:00 - 15:00',1 UNION ALL SELECT N'15:00 - 23:00',2
+              UNION ALL SELECT N'23:00 - 07:00',3 UNION ALL SELECT N'08:00 - 20:00',4
+              UNION ALL SELECT N'20:00 - 08:00',5
+            ),
+            D AS
+            (
+              SELECT N.Nobet,SUM(K.PureMiktariKg) PureKg,SUM(K.InceltilenMiktarKg) InceltilenKg
+              FROM uretim.DegirmenNobeti N JOIN uretim.DegirmenKaydi K ON K.DegirmenNobetId=N.DegirmenNobetId
+              WHERE N.Tarih>=@From AND N.Tarih<@End AND @Product IS NULL AND (@Origin IS NULL OR K.MenseiId=@Origin)
+              GROUP BY N.Nobet
+            ),
+            K AS
+            (
+              SELECT N.Nobet,SUM(K.YikamaSayisi) Yikama,SUM(K.KirecKg) KirecKg,SUM(K.MakineSayisi) Makine
+              FROM uretim.KurutmaNobeti N JOIN uretim.KurutmaKaydi K ON K.KurutmaNobetId=N.KurutmaNobetId
+              WHERE N.Tarih>=@From AND N.Tarih<@End AND (@Product IS NULL OR K.UrunId=@Product) AND (@Origin IS NULL OR K.MenseiId=@Origin)
+              GROUP BY N.Nobet
+            )
+            SELECT S.Nobet,COALESCE(D.PureKg,0),COALESCE(D.InceltilenKg,0),
+                   COALESCE(K.Yikama,0),COALESCE(K.KirecKg,0),COALESCE(K.Makine,0)
+            FROM Shifts S LEFT JOIN D ON D.Nobet=S.Nobet LEFT JOIN K ON K.Nobet=S.Nobet
+            WHERE D.Nobet IS NOT NULL OR K.Nobet IS NOT NULL
+            ORDER BY S.Sira;
+            """;
+        await using var connection=CreateConnection();await connection.OpenAsync();
+        await using var command=new SqlCommand(sql,connection);
+        Add(command.Parameters,"@From",from.Date);Add(command.Parameters,"@To",to.Date);
+        Add(command.Parameters,"@Product",productId);Add(command.Parameters,"@Origin",originId);
+        await using var reader=await command.ExecuteReaderAsync();
+        await reader.ReadAsync();
+        var result=new ProcessDashboardStats(
+            reader.GetInt32(0),reader.GetInt32(1),reader.GetDecimal(2),reader.GetDecimal(3),
+            reader.GetInt32(4),reader.GetInt32(5),reader.GetInt32(6),reader.GetDecimal(7),reader.GetInt32(8),[]);
+        var shifts=new List<ProcessShiftSummary>();
+        await reader.NextResultAsync();
+        while(await reader.ReadAsync())
+            shifts.Add(new(reader.GetString(0),reader.GetDecimal(1),reader.GetDecimal(2),
+                reader.GetInt32(3),reader.GetDecimal(4),reader.GetInt32(5)));
+        return result with { Shifts=shifts };
     }
 
     public Task<List<LookupItem>> GetMenseilerAsync() => GetLookupAsync("SELECT MenseiId, Ad FROM tanim.Mensei WHERE Aktif=1 ORDER BY Ad");
@@ -356,6 +555,152 @@ public sealed class SusamRepository(IConfiguration configuration)
         return items;
     }
 
+    public async Task<List<DegirmenNobetListItem>> GetDegirmenNobetleriAsync(int take=100)
+    {
+        const string sql="""
+            SELECT TOP(@Take) N.DegirmenNobetId,N.Tarih,N.Nobet,P.AdSoyad,N.Aciklama,
+                   COUNT(K.DegirmenKaydiId),COALESCE(SUM(K.PureMiktariKg),0),COALESCE(SUM(K.InceltilenMiktarKg),0)
+            FROM uretim.DegirmenNobeti N
+            JOIN tanim.Personel P ON P.PersonelId=N.PersonelId
+            LEFT JOIN uretim.DegirmenKaydi K ON K.DegirmenNobetId=N.DegirmenNobetId
+            GROUP BY N.DegirmenNobetId,N.Tarih,N.Nobet,P.AdSoyad,N.Aciklama
+            ORDER BY N.Tarih DESC,N.DegirmenNobetId DESC;
+            """;
+        var result=new List<DegirmenNobetListItem>();
+        await using var connection=CreateConnection();await connection.OpenAsync();
+        await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@Take",take);
+        await using var reader=await command.ExecuteReaderAsync();
+        while(await reader.ReadAsync())result.Add(new(reader.GetInt64(0),reader.GetDateTime(1),reader.GetString(2),reader.GetString(3),S(reader,4),reader.GetInt32(5),reader.GetDecimal(6),reader.GetDecimal(7)));
+        return result;
+    }
+
+    public async Task InsertDegirmenNobetiAsync(DegirmenNobetInput input)
+    {
+        await using var connection=CreateConnection();await connection.OpenAsync();
+        await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync();
+        try
+        {
+            const string headerSql="""
+                INSERT uretim.DegirmenNobeti(Tarih,Nobet,PersonelId,Aciklama,Olusturan)
+                OUTPUT INSERTED.DegirmenNobetId
+                VALUES(@Tarih,@Nobet,@Personel,@Aciklama,SUSER_SNAME());
+                """;
+            long headerId;
+            await using(var header=new SqlCommand(headerSql,connection,transaction))
+            {
+                Add(header.Parameters,"@Tarih",input.Tarih);
+                Add(header.Parameters,"@Nobet",input.Nobet.Trim());
+                Add(header.Parameters,"@Personel",input.PersonelId);
+                Add(header.Parameters,"@Aciklama",input.Aciklama?.Trim());
+                headerId=Convert.ToInt64(await header.ExecuteScalarAsync());
+            }
+            const string rowSql="""
+                INSERT uretim.DegirmenKaydi
+                  (DegirmenNobetId,SatirNo,FirinNoSergen,MenseiId,PureMiktariKg,InceltilenMiktarKg,TransferEdilenTank)
+                VALUES(@NobetId,@SatirNo,@Firin,@Mensei,@Pure,@Inceltilen,@Tank);
+                """;
+            for(var i=0;i<input.Satirlar.Count;i++)
+            {
+                var row=input.Satirlar[i];
+                await using var command=new SqlCommand(rowSql,connection,transaction);
+                Add(command.Parameters,"@NobetId",headerId);Add(command.Parameters,"@SatirNo",i+1);
+                Add(command.Parameters,"@Firin",row.FirinNoSergen.Trim());Add(command.Parameters,"@Mensei",row.MenseiId);
+                Add(command.Parameters,"@Pure",row.PureMiktariKg);Add(command.Parameters,"@Inceltilen",row.InceltilenMiktarKg);
+                Add(command.Parameters,"@Tank",row.TransferEdilenTank.Trim());
+                await command.ExecuteNonQueryAsync();
+            }
+            await transaction.CommitAsync();
+        }
+        catch{await transaction.RollbackAsync();throw;}
+    }
+
+    public Task DeleteDegirmenNobetiAsync(long id)=>ExecuteAsync(
+        "DELETE uretim.DegirmenNobeti WHERE DegirmenNobetId=@Id;",p=>Add(p,"@Id",id));
+
+    public async Task<List<KurutmaNobetListItem>> GetKurutmaNobetleriAsync(int take=100)
+    {
+        const string sql="""
+            SELECT TOP(@Take) N.KurutmaNobetId,N.Tarih,N.Nobet,P.AdSoyad,N.Aciklama,
+                   COUNT(K.KurutmaKaydiId),COALESCE(SUM(K.YikamaSayisi),0),COALESCE(SUM(K.KirecKg),0),COALESCE(SUM(K.MakineSayisi),0)
+            FROM uretim.KurutmaNobeti N
+            JOIN tanim.Personel P ON P.PersonelId=N.PersonelId
+            LEFT JOIN uretim.KurutmaKaydi K ON K.KurutmaNobetId=N.KurutmaNobetId
+            GROUP BY N.KurutmaNobetId,N.Tarih,N.Nobet,P.AdSoyad,N.Aciklama
+            ORDER BY N.Tarih DESC,N.KurutmaNobetId DESC;
+            """;
+        var result=new List<KurutmaNobetListItem>();
+        await using var connection=CreateConnection();await connection.OpenAsync();
+        await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@Take",take);
+        await using var reader=await command.ExecuteReaderAsync();
+        while(await reader.ReadAsync())result.Add(new(reader.GetInt64(0),reader.GetDateTime(1),reader.GetString(2),reader.GetString(3),S(reader,4),reader.GetInt32(5),reader.GetInt32(6),reader.GetDecimal(7),reader.GetInt32(8)));
+        return result;
+    }
+
+    public async Task InsertKurutmaNobetiAsync(KurutmaNobetInput input)
+    {
+        await using var connection=CreateConnection();await connection.OpenAsync();
+        await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync();
+        try
+        {
+            const string headerSql="""
+                INSERT uretim.KurutmaNobeti(Tarih,Nobet,PersonelId,Aciklama,Olusturan)
+                OUTPUT INSERTED.KurutmaNobetId
+                VALUES(@Tarih,@Nobet,@Personel,@Aciklama,SUSER_SNAME());
+                """;
+            long headerId;
+            await using(var header=new SqlCommand(headerSql,connection,transaction))
+            {
+                Add(header.Parameters,"@Tarih",input.Tarih);Add(header.Parameters,"@Nobet",input.Nobet.Trim());
+                Add(header.Parameters,"@Personel",input.PersonelId);Add(header.Parameters,"@Aciklama",input.Aciklama?.Trim());
+                headerId=Convert.ToInt64(await header.ExecuteScalarAsync());
+            }
+            const string rowSql="""
+                INSERT uretim.KurutmaKaydi
+                  (KurutmaNobetId,SatirNo,MenseiId,UrunId,YikamaSayisi,KirecKg,MakineSayisi)
+                VALUES(@NobetId,@SatirNo,@Mensei,@Urun,@Yikama,@Kirec,@Makine);
+                """;
+            for(var i=0;i<input.Satirlar.Count;i++)
+            {
+                var row=input.Satirlar[i];
+                await using var command=new SqlCommand(rowSql,connection,transaction);
+                Add(command.Parameters,"@NobetId",headerId);Add(command.Parameters,"@SatirNo",i+1);
+                Add(command.Parameters,"@Mensei",row.MenseiId);Add(command.Parameters,"@Urun",row.UrunId);
+                Add(command.Parameters,"@Yikama",row.YikamaSayisi);Add(command.Parameters,"@Kirec",row.KirecKg);
+                Add(command.Parameters,"@Makine",row.MakineSayisi);
+                await command.ExecuteNonQueryAsync();
+            }
+            await transaction.CommitAsync();
+        }
+        catch{await transaction.RollbackAsync();throw;}
+    }
+
+    public Task DeleteKurutmaNobetiAsync(long id)=>ExecuteAsync(
+        "DELETE uretim.KurutmaNobeti WHERE KurutmaNobetId=@Id;",p=>Add(p,"@Id",id));
+
+    public async Task<List<CopListItem>> GetCopKayitlariAsync(int take=100)
+    {
+        const string sql="""
+            SELECT TOP(@Take) C.CopKaydiId,C.Tarih,M.Ad,C.CopKg
+            FROM uretim.CopKaydi C
+            JOIN tanim.Mensei M ON M.MenseiId=C.MenseiId
+            ORDER BY C.Tarih DESC,C.CopKaydiId DESC;
+            """;
+        var result=new List<CopListItem>();
+        await using var connection=CreateConnection();await connection.OpenAsync();
+        await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@Take",take);
+        await using var reader=await command.ExecuteReaderAsync();
+        while(await reader.ReadAsync())result.Add(new(reader.GetInt64(0),reader.GetDateTime(1),reader.GetString(2),reader.GetDecimal(3)));
+        return result;
+    }
+
+    public Task InsertCopAsync(CopInput input)=>ExecuteAsync("""
+        INSERT uretim.CopKaydi(Tarih,MenseiId,CopKg,Olusturan)
+        VALUES(@Tarih,@Mensei,@Cop,SUSER_SNAME());
+        """,p=>{Add(p,"@Tarih",input.Tarih);Add(p,"@Mensei",input.MenseiId);Add(p,"@Cop",input.CopKg);});
+
+    public Task DeleteCopAsync(long id)=>ExecuteAsync(
+        "DELETE uretim.CopKaydi WHERE CopKaydiId=@Id;",p=>Add(p,"@Id",id));
+
     private async Task<List<LookupItem>> GetLookupAsync(string sql)
     {
         var items = new List<LookupItem>();
@@ -371,16 +716,16 @@ public sealed class SusamRepository(IConfiguration configuration)
     public async Task<List<IslamaListItem>> GetIslamaAsync(int take = 100, RecordFilter? filter = null)
     {
         const string sql = """
-            SELECT TOP (@Take) I.IslamaSoymaKaydiId,I.PartiNo,I.SoymaBaslangici,I.SoymaSuresiDakika,
+            SELECT TOP (@Take) I.IslamaSoymaKaydiId,I.PartiNo,I.SoymaBitisi,I.SoymaSuresiDakika,
                    I.CekilenTonajKg,I.CopKg,M.Ad,U.Ad,COALESCE(NULLIF(CONCAT(I.Silo1,' ',I.Silo2),' '),S.Kod)
             FROM uretim.IslamaSoymaKaydi I
             JOIN tanim.Mensei M ON M.MenseiId=I.MenseiId
             JOIN tanim.Urun U ON U.UrunId=I.UrunId
             LEFT JOIN tanim.Silo S ON S.SiloId=I.SiloId
             WHERE (@Like IS NULL OR I.PartiNo LIKE @Like OR I.BarkodSeri LIKE @Like OR M.Ad LIKE @Like OR U.Ad LIKE @Like OR S.Kod LIKE @Like OR I.Silo1 LIKE @Like OR I.Silo2 LIKE @Like)
-              AND (@From IS NULL OR I.SoymaBaslangici >= @From)
-              AND (@To IS NULL OR I.SoymaBaslangici < DATEADD(DAY,1,@To))
-            ORDER BY I.SoymaBaslangici DESC,I.IslamaSoymaKaydiId DESC;
+              AND (@From IS NULL OR I.SoymaBitisi >= @From)
+              AND (@To IS NULL OR I.SoymaBitisi < DATEADD(DAY,1,@To))
+            ORDER BY I.SoymaBitisi DESC,I.IslamaSoymaKaydiId DESC;
             """;
         var result = new List<IslamaListItem>();
         await using var connection = CreateConnection(); await connection.OpenAsync();
@@ -397,10 +742,10 @@ public sealed class SusamRepository(IConfiguration configuration)
         const string sql = """
             INSERT uretim.IslamaSoymaKaydi
               (BarkodSeri,HamSusamGelisTarihi,CopKg,PartiNo,NobetTarihi,IslamaBaslangici,IslamaBitisi,
-               SoymaBaslangici,SoymaBitisi,EkranTonajiKg,CekilenTonajKg,Silo1,Silo2,MenseiId,UrunId,Aciklama,PersonelId,Olusturan)
+               SoymaBaslangici,SoymaBitisi,EkranTonajiKg,CekilenTonajKg,Silo1,Silo2,MenseiId,UrunId,Aciklama,PersonelId,RaporTarihi,Olusturan)
             VALUES
               (@Barkod,@Gelis,@Cop,@Parti,@Nobet,@IslamaBas,@IslamaBit,@SoymaBas,@SoymaBit,@Ekran,@Cekilen,
-               @Silo1,@Silo2,@Mensei,@Urun,@Aciklama,@Personel,SUSER_SNAME());
+               @Silo1,@Silo2,@Mensei,@Urun,@Aciklama,@Personel,@RaporTarihi,SUSER_SNAME());
             """;
         await ExecuteAsync(sql, p =>
         {
@@ -409,6 +754,7 @@ public sealed class SusamRepository(IConfiguration configuration)
             Add(p,"@IslamaBit",x.IslamaBitisi); Add(p,"@SoymaBas",x.SoymaBaslangici); Add(p,"@SoymaBit",x.SoymaBitisi);
             Add(p,"@Ekran",x.EkranTonajiKg); Add(p,"@Cekilen",x.CekilenTonajKg); Add(p,"@Silo1",x.Silo1); Add(p,"@Silo2",x.Silo2);
             Add(p,"@Mensei",x.MenseiId); Add(p,"@Urun",x.UrunId); Add(p,"@Aciklama",x.Aciklama); Add(p,"@Personel",x.PersonelId);
+            Add(p,"@RaporTarihi",ReportWeekStart(x.SoymaBitisi));
         });
     }
 
@@ -428,7 +774,7 @@ public sealed class SusamRepository(IConfiguration configuration)
     public async Task<List<KavurmaListItem>> GetKavurmaAsync(int take = 100, RecordFilter? filter = null)
     {
         const string sql = """
-            SELECT TOP (@Take) K.KavurmaKaydiId,K.Tarih,K.PartiNo,K.NetTonajKg,P.AdSoyad,K.TavaSayisi,U.Ad
+            SELECT TOP (@Take) K.KavurmaKaydiId,K.Tarih,K.PartiNo,K.NetTonajKg,P.AdSoyad,K.KepekKg,K.TavaSayisi,U.Ad
             FROM uretim.KavurmaKaydi K LEFT JOIN tanim.Personel P ON P.PersonelId=K.PersonelId
             LEFT JOIN tanim.Urun U ON U.UrunId=K.UrunId
             WHERE (@Like IS NULL OR K.PartiNo LIKE @Like OR P.AdSoyad LIKE @Like OR U.Ad LIKE @Like)
@@ -437,16 +783,16 @@ public sealed class SusamRepository(IConfiguration configuration)
             """;
         var result = new List<KavurmaListItem>();
         await using var c=CreateConnection(); await c.OpenAsync(); await using var cmd=new SqlCommand(sql,c); cmd.Parameters.AddWithValue("@Take",take); AddFilterParameters(cmd,filter);
-        await using var r=await cmd.ExecuteReaderAsync(); while(await r.ReadAsync()) result.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetDecimal(3),S(r,4),D<int>(r,5),S(r,6)));
+        await using var r=await cmd.ExecuteReaderAsync(); while(await r.ReadAsync()) result.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetDecimal(3),S(r,4),D<decimal>(r,5),D<int>(r,6),S(r,7)));
         return result;
     }
 
     public Task InsertKavurmaAsync(KavurmaInput x) => ExecuteAsync("""
         INSERT uretim.KavurmaKaydi
-          (Tarih,PartiNo,EkranTonajiKg,NetTonajKg,PersonelId,TavaSayisi,ArizaliTavaSayisi,CikanSorteksAltiKg,
+          (Tarih,PartiNo,EkranTonajiKg,NetTonajKg,PersonelId,KepekKg,TavaSayisi,ArizaliTavaSayisi,CikanSorteksAltiKg,
            EklenenSorteksAltiKg,MenseiId,UrunId,OrtalamaVerimOrani,VerimOrani,Aciklama,Olusturan)
-        VALUES(@Tarih,@Parti,@Ekran,@Net,@Personel,@Tava,@Arizali,@Cikan,@Eklenen,@Mensei,@Urun,@OrtVerim,@Verim,@Aciklama,SUSER_SNAME());
-        """, p => { Add(p,"@Tarih",x.Tarih); Add(p,"@Parti",x.PartiNo); Add(p,"@Ekran",x.EkranTonajiKg); Add(p,"@Net",x.NetTonajKg); Add(p,"@Personel",x.PersonelId); Add(p,"@Tava",x.TavaSayisi); Add(p,"@Arizali",x.ArizaliTavaSayisi); Add(p,"@Cikan",x.CikanSorteksAltiKg); Add(p,"@Eklenen",x.EklenenSorteksAltiKg); Add(p,"@Mensei",x.MenseiId); Add(p,"@Urun",x.UrunId); Add(p,"@OrtVerim",x.OrtalamaVerimOrani); Add(p,"@Verim",x.VerimOrani); Add(p,"@Aciklama",x.Aciklama); });
+        VALUES(@Tarih,@Parti,@Ekran,@Net,@Personel,@Kepek,@Tava,@Arizali,@Cikan,@Eklenen,@Mensei,@Urun,@OrtVerim,@Verim,@Aciklama,SUSER_SNAME());
+        """, p => { Add(p,"@Tarih",x.Tarih); Add(p,"@Parti",x.PartiNo); Add(p,"@Ekran",x.EkranTonajiKg); Add(p,"@Net",x.NetTonajKg); Add(p,"@Personel",x.PersonelId); Add(p,"@Kepek",x.KepekKg); Add(p,"@Tava",x.TavaSayisi); Add(p,"@Arizali",x.ArizaliTavaSayisi); Add(p,"@Cikan",x.CikanSorteksAltiKg); Add(p,"@Eklenen",x.EklenenSorteksAltiKg); Add(p,"@Mensei",x.MenseiId); Add(p,"@Urun",x.UrunId); Add(p,"@OrtVerim",x.OrtalamaVerimOrani); Add(p,"@Verim",x.VerimOrani); Add(p,"@Aciklama",x.Aciklama); });
 
     public async Task<List<PaketlemeListItem>> GetPaketlemeAsync(int take=100, RecordFilter? filter=null)
     {
@@ -484,17 +830,17 @@ public sealed class SusamRepository(IConfiguration configuration)
     }
 
     public Task UpdateIslamaAsync(long id,IslamaInput x)=>ExecuteAsync("""
-        UPDATE uretim.IslamaSoymaKaydi SET BarkodSeri=@Barkod,HamSusamGelisTarihi=@Gelis,CopKg=@Cop,PartiNo=@Parti,NobetTarihi=@Nobet,IslamaBaslangici=@IslamaBas,IslamaBitisi=@IslamaBit,SoymaBaslangici=@SoymaBas,SoymaBitisi=@SoymaBit,EkranTonajiKg=@Ekran,CekilenTonajKg=@Cekilen,Silo1=@Silo1,Silo2=@Silo2,SiloId=NULL,MenseiId=@Mensei,UrunId=@Urun,Aciklama=@Aciklama,PersonelId=@Personel WHERE IslamaSoymaKaydiId=@Id;
-        """,p=>{Add(p,"@Id",id);Add(p,"@Barkod",x.BarkodSeri);Add(p,"@Gelis",x.HamSusamGelisTarihi);Add(p,"@Cop",x.CopKg);Add(p,"@Parti",x.PartiNo);Add(p,"@Nobet",x.NobetTarihi);Add(p,"@IslamaBas",x.IslamaBaslangici);Add(p,"@IslamaBit",x.IslamaBitisi);Add(p,"@SoymaBas",x.SoymaBaslangici);Add(p,"@SoymaBit",x.SoymaBitisi);Add(p,"@Ekran",x.EkranTonajiKg);Add(p,"@Cekilen",x.CekilenTonajKg);Add(p,"@Silo1",x.Silo1);Add(p,"@Silo2",x.Silo2);Add(p,"@Mensei",x.MenseiId);Add(p,"@Urun",x.UrunId);Add(p,"@Aciklama",x.Aciklama);Add(p,"@Personel",x.PersonelId);});
+        UPDATE uretim.IslamaSoymaKaydi SET BarkodSeri=@Barkod,HamSusamGelisTarihi=@Gelis,CopKg=@Cop,PartiNo=@Parti,NobetTarihi=@Nobet,RaporTarihi=@RaporTarihi,IslamaBaslangici=@IslamaBas,IslamaBitisi=@IslamaBit,SoymaBaslangici=@SoymaBas,SoymaBitisi=@SoymaBit,EkranTonajiKg=@Ekran,CekilenTonajKg=@Cekilen,Silo1=@Silo1,Silo2=@Silo2,SiloId=NULL,MenseiId=@Mensei,UrunId=@Urun,Aciklama=@Aciklama,PersonelId=@Personel WHERE IslamaSoymaKaydiId=@Id;
+        """,p=>{Add(p,"@Id",id);Add(p,"@Barkod",x.BarkodSeri);Add(p,"@Gelis",x.HamSusamGelisTarihi);Add(p,"@Cop",x.CopKg);Add(p,"@Parti",x.PartiNo);Add(p,"@Nobet",x.NobetTarihi);Add(p,"@RaporTarihi",ReportWeekStart(x.SoymaBitisi));Add(p,"@IslamaBas",x.IslamaBaslangici);Add(p,"@IslamaBit",x.IslamaBitisi);Add(p,"@SoymaBas",x.SoymaBaslangici);Add(p,"@SoymaBit",x.SoymaBitisi);Add(p,"@Ekran",x.EkranTonajiKg);Add(p,"@Cekilen",x.CekilenTonajKg);Add(p,"@Silo1",x.Silo1);Add(p,"@Silo2",x.Silo2);Add(p,"@Mensei",x.MenseiId);Add(p,"@Urun",x.UrunId);Add(p,"@Aciklama",x.Aciklama);Add(p,"@Personel",x.PersonelId);});
 
     public async Task<KavurmaInput?> GetKavurmaInputAsync(long id)
     {
-        const string sql="""SELECT Tarih,PartiNo,EkranTonajiKg,NetTonajKg,PersonelId,TavaSayisi,ArizaliTavaSayisi,CikanSorteksAltiKg,EklenenSorteksAltiKg,MenseiId,UrunId,OrtalamaVerimOrani,VerimOrani,Aciklama FROM uretim.KavurmaKaydi WHERE KavurmaKaydiId=@Id;""";
+        const string sql="""SELECT Tarih,PartiNo,EkranTonajiKg,NetTonajKg,PersonelId,KepekKg,TavaSayisi,ArizaliTavaSayisi,CikanSorteksAltiKg,EklenenSorteksAltiKg,MenseiId,UrunId,OrtalamaVerimOrani,VerimOrani,Aciklama FROM uretim.KavurmaKaydi WHERE KavurmaKaydiId=@Id;""";
         await using var c=CreateConnection();await c.OpenAsync();await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Id",id);await using var r=await cmd.ExecuteReaderAsync();if(!await r.ReadAsync())return null;
-        return new(){Tarih=D<DateTime>(r,0),PartiNo=S(r,1),EkranTonajiKg=D<decimal>(r,2),NetTonajKg=r.GetDecimal(3),PersonelId=D<int>(r,4),TavaSayisi=D<int>(r,5),ArizaliTavaSayisi=D<int>(r,6),CikanSorteksAltiKg=D<decimal>(r,7),EklenenSorteksAltiKg=D<decimal>(r,8),MenseiId=D<int>(r,9),UrunId=D<int>(r,10),OrtalamaVerimOrani=D<decimal>(r,11),VerimOrani=D<decimal>(r,12),Aciklama=S(r,13)};
+        return new(){Tarih=D<DateTime>(r,0),PartiNo=S(r,1),EkranTonajiKg=D<decimal>(r,2),NetTonajKg=r.GetDecimal(3),PersonelId=D<int>(r,4),KepekKg=D<decimal>(r,5),TavaSayisi=D<int>(r,6),ArizaliTavaSayisi=D<int>(r,7),CikanSorteksAltiKg=D<decimal>(r,8),EklenenSorteksAltiKg=D<decimal>(r,9),MenseiId=D<int>(r,10),UrunId=D<int>(r,11),OrtalamaVerimOrani=D<decimal>(r,12),VerimOrani=D<decimal>(r,13),Aciklama=S(r,14)};
     }
 
-    public Task UpdateKavurmaAsync(long id,KavurmaInput x)=>ExecuteAsync("""UPDATE uretim.KavurmaKaydi SET Tarih=@Tarih,PartiNo=@Parti,EkranTonajiKg=@Ekran,NetTonajKg=@Net,PersonelId=@Personel,TavaSayisi=@Tava,ArizaliTavaSayisi=@Arizali,CikanSorteksAltiKg=@Cikan,EklenenSorteksAltiKg=@Eklenen,MenseiId=@Mensei,UrunId=@Urun,OrtalamaVerimOrani=@OrtVerim,VerimOrani=@Verim,Aciklama=@Aciklama WHERE KavurmaKaydiId=@Id;""",p=>{Add(p,"@Id",id);Add(p,"@Tarih",x.Tarih);Add(p,"@Parti",x.PartiNo);Add(p,"@Ekran",x.EkranTonajiKg);Add(p,"@Net",x.NetTonajKg);Add(p,"@Personel",x.PersonelId);Add(p,"@Tava",x.TavaSayisi);Add(p,"@Arizali",x.ArizaliTavaSayisi);Add(p,"@Cikan",x.CikanSorteksAltiKg);Add(p,"@Eklenen",x.EklenenSorteksAltiKg);Add(p,"@Mensei",x.MenseiId);Add(p,"@Urun",x.UrunId);Add(p,"@OrtVerim",x.OrtalamaVerimOrani);Add(p,"@Verim",x.VerimOrani);Add(p,"@Aciklama",x.Aciklama);});
+    public Task UpdateKavurmaAsync(long id,KavurmaInput x)=>ExecuteAsync("""UPDATE uretim.KavurmaKaydi SET Tarih=@Tarih,PartiNo=@Parti,EkranTonajiKg=@Ekran,NetTonajKg=@Net,PersonelId=@Personel,KepekKg=@Kepek,TavaSayisi=@Tava,ArizaliTavaSayisi=@Arizali,CikanSorteksAltiKg=@Cikan,EklenenSorteksAltiKg=@Eklenen,MenseiId=@Mensei,UrunId=@Urun,OrtalamaVerimOrani=@OrtVerim,VerimOrani=@Verim,Aciklama=@Aciklama WHERE KavurmaKaydiId=@Id;""",p=>{Add(p,"@Id",id);Add(p,"@Tarih",x.Tarih);Add(p,"@Parti",x.PartiNo);Add(p,"@Ekran",x.EkranTonajiKg);Add(p,"@Net",x.NetTonajKg);Add(p,"@Personel",x.PersonelId);Add(p,"@Kepek",x.KepekKg);Add(p,"@Tava",x.TavaSayisi);Add(p,"@Arizali",x.ArizaliTavaSayisi);Add(p,"@Cikan",x.CikanSorteksAltiKg);Add(p,"@Eklenen",x.EklenenSorteksAltiKg);Add(p,"@Mensei",x.MenseiId);Add(p,"@Urun",x.UrunId);Add(p,"@OrtVerim",x.OrtalamaVerimOrani);Add(p,"@Verim",x.VerimOrani);Add(p,"@Aciklama",x.Aciklama);});
 
     public async Task<PaketlemeInput?> GetPaketlemeInputAsync(long id)
     {
@@ -553,21 +899,45 @@ public sealed class SusamRepository(IConfiguration configuration)
     {
         var products=GetUrunlerAsync();var origins=GetMenseilerAsync();var personnel=GetPersonellerAsync();var packages=GetAmbalajlarAsync();
         await Task.WhenAll(products,origins,personnel,packages);
-        return new(){["Ürünler"]=products.Result,["Menşeiler"]=origins.Result,["Personeller"]=personnel.Result,["Ambalajlar"]=packages.Result};
+        return new(){["ÃœrÃ¼nler"]=products.Result,["MenÅŸeiler"]=origins.Result,["Personeller"]=personnel.Result,["Ambalajlar"]=packages.Result};
     }
 
     public Task AddDefinitionAsync(string type,string name,decimal? weight,int? taskNumber=null)
     {
         var (sql,nameParam)=type switch
         {
-            "urun" => ("IF NOT EXISTS(SELECT 1 FROM tanim.Urun WHERE Ad=@Name) INSERT tanim.Urun(Ad) VALUES(@Name);","@Name"),
-            "mensei" => ("IF NOT EXISTS(SELECT 1 FROM tanim.Mensei WHERE Ad=@Name) INSERT tanim.Mensei(Ad) VALUES(@Name);","@Name"),
-            "personel" => ("IF NOT EXISTS(SELECT 1 FROM tanim.Personel WHERE AdSoyad=@Name) INSERT tanim.Personel(AdSoyad,GorevNo) VALUES(@Name,@Task);","@Name"),
+            "urun" => ("IF EXISTS(SELECT 1 FROM tanim.Urun WHERE Ad=@Name) UPDATE tanim.Urun SET Aktif=1 WHERE Ad=@Name; ELSE INSERT tanim.Urun(Ad) VALUES(@Name);","@Name"),
+            "mensei" => ("IF EXISTS(SELECT 1 FROM tanim.Mensei WHERE Ad=@Name) UPDATE tanim.Mensei SET Aktif=1 WHERE Ad=@Name; ELSE INSERT tanim.Mensei(Ad) VALUES(@Name);","@Name"),
+            "personel" => ("IF EXISTS(SELECT 1 FROM tanim.Personel WHERE AdSoyad=@Name) UPDATE tanim.Personel SET Aktif=1 WHERE AdSoyad=@Name; ELSE INSERT tanim.Personel(AdSoyad,GorevNo) VALUES(@Name,@Task);","@Name"),
             "silo" => ("IF NOT EXISTS(SELECT 1 FROM tanim.Silo WHERE Kod=@Name) INSERT tanim.Silo(Kod) VALUES(@Name);","@Name"),
-            "ambalaj" => ("IF NOT EXISTS(SELECT 1 FROM tanim.Ambalaj WHERE Cins=@Name AND AgirlikKg=@Weight) INSERT tanim.Ambalaj(Cins,AgirlikKg) VALUES(@Name,@Weight);","@Name"),
+            "ambalaj" => ("IF EXISTS(SELECT 1 FROM tanim.Ambalaj WHERE Cins=@Name AND AgirlikKg=@Weight) UPDATE tanim.Ambalaj SET Aktif=1 WHERE Cins=@Name AND AgirlikKg=@Weight; ELSE INSERT tanim.Ambalaj(Cins,AgirlikKg) VALUES(@Name,@Weight);","@Name"),
             _ => throw new ArgumentOutOfRangeException(nameof(type))
         };
         return ExecuteAsync(sql,p=>{Add(p,nameParam,name);Add(p,"@Weight",weight);Add(p,"@Task",taskNumber);});
+    }
+
+    public Task DeactivateDefinitionAsync(string type,int id)
+    {
+        var (table,key)=type switch
+        {
+            "urun" => ("tanim.Urun","UrunId"),
+            "mensei" => ("tanim.Mensei","MenseiId"),
+            "ambalaj" => ("tanim.Ambalaj","AmbalajId"),
+            _ => throw new ArgumentOutOfRangeException(nameof(type))
+        };
+        return ExecuteAsync($"UPDATE {table} SET Aktif=0 WHERE {key}=@Id;",p=>Add(p,"@Id",id));
+    }
+
+    public Task UpdateDefinitionAsync(string type,int id,string name,decimal? weight)
+    {
+        var sql=type switch
+        {
+            "urun" => "UPDATE tanim.Urun SET Ad=@Name WHERE UrunId=@Id;",
+            "mensei" => "UPDATE tanim.Mensei SET Ad=@Name WHERE MenseiId=@Id;",
+            "ambalaj" => "UPDATE tanim.Ambalaj SET Cins=@Name,AgirlikKg=@Weight WHERE AmbalajId=@Id;",
+            _ => throw new ArgumentOutOfRangeException(nameof(type))
+        };
+        return ExecuteAsync(sql,p=>{Add(p,"@Id",id);Add(p,"@Name",name.Trim());Add(p,"@Weight",weight);});
     }
 
     private async Task ExecuteAsync(string sql,Action<SqlParameterCollection> parameters)
@@ -589,6 +959,14 @@ public sealed class SusamRepository(IConfiguration configuration)
         from.Value = filter?.From?.Date ?? (object)DBNull.Value;
         var to = command.Parameters.Add("@To", SqlDbType.Date);
         to.Value = filter?.To?.Date ?? (object)DBNull.Value;
+    }
+
+    private static DateTime? ReportWeekStart(DateTime? date)
+    {
+        if (!date.HasValue) return null;
+        var year = ISOWeek.GetYear(date.Value);
+        var week = ISOWeek.GetWeekOfYear(date.Value);
+        return ISOWeek.ToDateTime(year, week, DayOfWeek.Monday);
     }
 
     private static T? D<T>(SqlDataReader reader,int ordinal) where T:struct => reader.IsDBNull(ordinal)?null:reader.GetFieldValue<T>(ordinal);

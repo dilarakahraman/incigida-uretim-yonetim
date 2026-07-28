@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**;.codex-build/**;.codex-work/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,4 +13,3 @@
   </ItemGroup>
 
 </Project>
-

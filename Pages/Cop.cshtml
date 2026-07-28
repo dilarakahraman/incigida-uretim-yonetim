@@ -1,0 +1,33 @@
+@page
+@model CopModel
+@{ViewData["Title"]="Çöp";}
+
+@if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
+
+<div class="@(Model.IsAdmin?"workspace-grid":"personnel-entry")">
+@if(Model.IsAdmin)
+{
+    <section class="data-section">
+        <div class="section-head"><div><h2>Çöp kayıtları</h2><p>Fabrikaya giriş öncesi elemede çıkan çöp</p></div><span class="count-badge">@Model.Records.Count kayıt</span></div>
+        <div class="table-wrap"><table class="data-table">
+            <thead><tr><th>Tarih</th><th>Menşei</th><th class="num">Çöp</th><th></th></tr></thead>
+            <tbody>
+            @foreach(var x in Model.Records)
+            {
+                <tr><td><strong>@x.Tarih.ToString("dd.MM.yyyy")</strong></td><td>@x.Mensei</td><td class="num"><strong>@x.CopKg.ToString("0.###") kg</strong></td><td><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu çöp kaydı silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></td></tr>
+            }
+            </tbody>
+        </table></div>
+    </section>
+}
+    <aside class="entry-panel">
+        <div class="panel-head"><h2>Yeni çöp kaydı</h2><span>Yalnızca SQL</span></div>
+        <form method="post" class="entry-form">
+            <div asp-validation-summary="All" class="validation"></div>
+            <label>Tarih<input asp-for="Input.Tarih" type="date"/></label>
+            <label>Menşei<select asp-for="Input.MenseiId"><option value="">Seçin</option>@foreach(var x in Model.Menseiler){<option value="@x.Id">@x.Name</option>}</select></label>
+            <label>Çöp <span>kg</span><input asp-for="Input.CopKg" type="number" min="0.001" step="0.001"/></label>
+            <button class="btn-primary-app full">SQL'e kaydet</button>
+        </form>
+    </aside>
+</div>

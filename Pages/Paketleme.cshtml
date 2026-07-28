@@ -13,7 +13,7 @@
 </section>}
 <aside class="entry-panel">
  <div class="panel-head"><h2>@(Model.EditId is>0?"Kaydı düzenle":Model.IsAdmin?"Yeni kayıt":"Görev kaydı")</h2><span>@(Model.IsAdmin?"Paketleme":Model.PersonnelName)</span></div>
- <form method="post" class="entry-form"><input asp-for="EditId" type="hidden"/><div asp-validation-summary="ModelOnly" class="validation"></div>
+ <form method="post" class="entry-form"><input asp-for="EditId" type="hidden"/><div asp-validation-summary="All" class="validation"></div>
  @if(Model.EditId is>0){<div class="edit-banner"><span>#@Model.EditId numaralı kayıt düzenleniyor</span><a asp-page="/Paketleme">İptal</a></div>}
  <div class="field-row"><label>Tarih<input asp-for="Input.Tarih" type="date"/></label><label>Parti no<input asp-for="Input.PartiNo"/></label></div>
  <div class="field-row"><label>Ambalaj ağırlığı <span>kg</span><input asp-for="Input.AmbalajAgirligiKg" type="number" step="0.001"/></label><label>Adet<input asp-for="Input.Adet" type="number"/></label></div>

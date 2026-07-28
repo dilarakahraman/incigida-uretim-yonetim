@@ -1,8 +1,7 @@
 @page
 @model IndexModel
-@{ViewData["Title"]="Genel Bakış";var adjustedNet=Math.Max(0,Model.Stats.KavurmaKg-Model.Stats.AddedSortexKg);var branRatio=Model.Stats.IslamaKg<=0?0:Model.Stats.BranKg/Model.Stats.IslamaKg*100;var totalYield=Model.Stats.Randiman+branRatio;}
+@{ViewData["Title"]="Genel Bakış";var netIslama=Math.Max(0,Model.Stats.IslamaKg-Model.Stats.WasteKg);var adjustedNet=Math.Max(0,Model.Stats.KavurmaKg-Model.Stats.AddedSortexKg);var branRatio=Model.Stats.IslamaKg<=0?0:Model.Stats.BranKg/Model.Stats.IslamaKg*100;var totalYield=Model.Stats.Randiman+branRatio;}
 @if(Model.ErrorMessage is not null){<div class="notice error"><strong>Veritabanına bağlanılamadı.</strong><span>@Model.ErrorMessage</span></div>}
-@if(Model.CatalogMessage is not null){<div class="notice error"><span>@Model.CatalogMessage</span></div>}
 
 <section class="overview-head">
  <div><span>YÖNETİM PANELİ</span><h1>Üretim Genel Bakış</h1><p>@Model.Year / @Model.Week. hafta (@Model.From.ToString("dd.MM")–@Model.To.ToString("dd.MM.yyyy")) sonuçları</p></div>
@@ -14,18 +13,24 @@
  </form>
 </section>
 
-<section class="overview-kpis">
- <article><span>Üretime alınan</span><strong>@Model.Stats.IslamaKg.ToString("N0") kg</strong><small>@Model.Stats.Islama parti</small></article>
- <article><span>Düzeltilmiş net üretim</span><strong>@adjustedNet.ToString("N0") kg</strong><small>Kavurma neti − eklenen sorteks altı</small></article>
- <article class="accent"><span>Haftalık Randıman</span><strong>%@Model.Stats.Randiman.ToString("0.0")</strong><small>(Net tonaj − S. altı) ÷ (çekilen − çöp)</small></article>
- <article class="accent total-yield"><span>Toplam Hesaplanabilir Randıman</span><strong>%@totalYield.ToString("0.0")</strong><small>Haftalık verim + kepek oranı</small></article>
- <article><span>Paketlenen</span><strong>@Model.Stats.PaketlemeKg.ToString("N0") kg</strong><small>@Model.Stats.Paketleme kayıt</small></article>
- <article><span>Kepek</span><strong>@Model.Stats.BranKg.ToString("N0") kg</strong><small>%@branRatio.ToString("0.00") ham susam oranı</small></article>
-
-</section>
+<div class="calculation-flow">
+ <section class="overview-kpis input-flow">
+  <article><span>1 · Üretime Alınan</span><strong>@Model.Stats.IslamaKg.ToString("N0") kg</strong><small>Islama çekilen tonaj toplamı</small></article>
+  <article class="deduction"><span>2 · Çöp</span><strong>@Model.Stats.WasteKg.ToString("N0") kg</strong><small>Üretime alınandan düşülür</small></article>
+  <article class="net"><span>3 · Net Islama Girdisi</span><strong>@netIslama.ToString("N0") kg</strong><small>Üretime alınan − çöp</small></article>
+ </section>
+ <section class="overview-kpis output-flow">
+  <article><span>4 · Kavurma Tonajı</span><strong>@Model.Stats.KavurmaKg.ToString("N0") kg</strong><small>Kavurma net tonaj toplamı</small></article>
+  <article class="deduction"><span>5 · Eklenen Sorteks Altı</span><strong>@Model.Stats.AddedSortexKg.ToString("N0") kg</strong><small>Kavurma tonajından düşülür</small></article>
+  <article class="net"><span>6 · Net Kavurma</span><strong>@adjustedNet.ToString("N0") kg</strong><small>Kavurma − eklenen S. altı</small></article>
+  <article class="accent"><span>7 · Randıman</span><strong>%@Model.Stats.Randiman.ToString("0.0")</strong><small>Net kavurma ÷ üretime alınan</small></article>
+  <article><span>8 · Kepek Oranı</span><strong>%@branRatio.ToString("0.00")</strong><small>@Model.Stats.BranKg.ToString("N0") kg kepek</small></article>
+  <article class="accent total-yield"><span>9 · Toplam Randıman</span><strong>%@totalYield.ToString("0.0")</strong><small>Randıman + kepek oranı</small></article>
+ </section>
+</div>
 
 <section class="simple-panel excel-summary-panel weekly-summary-panel">
- <header><div><h2>Kavurma Haftalık Özeti</h2><p>Seçilen Excel hafta sayfasındaki kavurma özeti</p></div><span>%@Model.Stats.Randiman.ToString("0.0") randıman</span></header>
+ <header><div><h2>Kavurma Haftalık Özeti</h2><p>Seçilen haftanın SQL kayıtlarından hesaplanan özeti</p></div><span>%@Model.Stats.Randiman.ToString("0.0") randıman</span></header>
  <div class="weekly-summary-values">
   <article><span>Üretilen Miktar</span><strong>@Model.Stats.KavurmaKg.ToString("N0") kg</strong><small>Kavurma net tonaj toplamı</small></article>
   <article><span>Üretime Katılan S. Altı</span><strong>@Model.Stats.AddedSortexKg.ToString("N0") kg</strong><small>Kavurma H sütunu toplamı</small></article>
@@ -34,25 +39,43 @@
  </div>
 </section>
 
-<section class="overview-grid">
- <article class="simple-panel goods-panel">
-  <header><div><h2>Üretime Alınan Mallar</h2><p>Ürün cinsi ve menşeine göre toplam</p></div><span>@Model.Stats.ProductOrigins.Sum(x=>x.Count) parti</span></header>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>Ürün cinsi</th><th>Menşei</th></thead><tbody>
-  @foreach(var x in Model.Stats.ProductOrigins){<tr><td><strong>@x.Product</strong></td><td>@x.Origin</td><td class="num"><span class="number-pill">@x.Count</span></td><td class="num"><strong>@x.Kg.ToString("N0") kg</strong></td></tr>}
-  @if(Model.Stats.ProductOrigins.Count==0){<tr><td colspan="4" class="empty">Seçilen filtrelerde kayıt yok.</td></tr>}
-  </tbody></table></div>
- </article>
+<section class="simple-panel weekly-summary-panel">
+ <header><div><h2>Değirmen ve Kurutma Özeti</h2><p>Seçilen haftanın SQL kayıtları</p></div><span>@(Model.Processes.DegirmenNobet+Model.Processes.KurutmaNobet) nöbet</span></header>
+ <div class="weekly-summary-values">
+  <article><span>Değirmen Püre</span><strong>@Model.Processes.PureKg.ToString("N0") kg</strong><small>@Model.Processes.DegirmenNobet nöbet · @Model.Processes.DegirmenSatir satır</small></article>
+  <article><span>İnceltilen</span><strong>@Model.Processes.InceltilenKg.ToString("N0") kg</strong><small>Fark: @((Model.Processes.PureKg-Model.Processes.InceltilenKg).ToString("N0")) kg</small></article>
+  <article><span>Kurutma Yıkama</span><strong>@Model.Processes.YikamaSayisi.ToString("N0")</strong><small>@Model.Processes.KurutmaNobet nöbet · @Model.Processes.KurutmaSatir satır</small></article>
+  <article><span>Kireç / Makine</span><strong>@Model.Processes.KirecKg.ToString("N0") kg</strong><small>@Model.Processes.MakineSayisi.ToString("N0") makine</small></article>
+ </div>
+ <div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Nöbet</th><th class="num">Püre</th><th class="num">İnceltilen</th><th class="num">Yıkama</th><th class="num">Kireç</th><th class="num">Makine</th></tr></thead>
+  <tbody>
+  @foreach(var x in Model.Processes.Shifts){<tr><td><strong>@x.Nobet</strong></td><td class="num">@x.PureKg.ToString("N0") kg</td><td class="num">@x.InceltilenKg.ToString("N0") kg</td><td class="num">@x.YikamaSayisi.ToString("N0")</td><td class="num">@x.KirecKg.ToString("N0") kg</td><td class="num">@x.MakineSayisi.ToString("N0")</td></tr>}
+  @if(Model.Processes.Shifts.Count==0){<tr><td colspan="6" class="empty">Seçilen haftada değirmen veya kurutma kaydı yok.</td></tr>}
+  </tbody>
+ </table></div>
+</section>
 
+<section class="overview-grid">
  <article class="simple-panel packaging-panel">
   <header><div><h2>Paketleme Özeti</h2><p>Ambalaj ağırlığı × adet</p></div><span>@Model.Stats.PackagingWeights.Sum(x=>x.Units).ToString("N0") adet</span></header>
   <div class="package-list">@foreach(var x in Model.Stats.PackagingWeights){<div><span><b>@x.WeightKg.ToString("0.###") kg</b><small>Ambalaj ağırlığı</small></span><strong>@x.Units.ToString("N0") adet</strong><em>@x.TotalKg.ToString("N0") kg</em></div>}@if(Model.Stats.PackagingWeights.Count==0){<p class="empty">Ambalaj verisi yok.</p>}</div>
   <div class="packaging-sortex-total"><span>Çıkan Sorteks Altı</span><strong>@Model.Stats.PackagingSortexKg.ToString("N0") kg</strong></div>
  </article>
 
+ <article class="simple-panel filling-panel">
+  <header><div><h2>Dolum Özeti</h2><p>Seçilen haftanın SQL dolum kayıtları</p></div><span>@Model.Stats.Dolum kayıt</span></header>
+  <div class="filling-summary">
+   <div><span>Toplam Dolum</span><strong>@Model.Stats.FillingKg.ToString("N0") kg</strong></div>
+   <div><span>Toplam Adet</span><strong>@Model.Stats.FillingUnits.ToString("N0")</strong></div>
+   <div><span>Kişi Başına Dolum</span><strong>@Model.Stats.FillingKgPerPerson.ToString("N0") kg</strong></div>
+  </div>
+ </article>
+
 </section>
 
 <details class="advanced-panel">
- <summary>Detaylı analizleri göster <span>Ürün verimleri · personel · günlük grafik</span></summary>
+ <summary>Detaylı analizleri göster <span>Ürün verimleri · kavurma personeli</span></summary>
  <section class="data-section product-performance"><div class="section-head"><div><h2>Ürün Bazında Verim</h2><p>Kavurma ve paketleme ayrı hesaplanır</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Ürün</th><th class="num">Girdi</th><th class="num">Kavurma</th><th class="num">Kavurma verimi</th><th class="num">Paketlenen</th><th class="num">Paketleme verimi</th></tr></thead><tbody>@foreach(var x in Model.Stats.ProductYields){<tr><td><strong>@x.Product</strong></td><td class="num">@x.InputKg.ToString("N0") kg</td><td class="num">@x.RoastedKg.ToString("N0") kg</td><td class="num"><strong>%@x.RoastingYield.ToString("0.0")</strong></td><td class="num">@x.PackagedKg.ToString("N0") kg</td><td class="num"><strong>%@x.PackagingYield.ToString("0.0")</strong></td></tr>}</tbody></table></div></section>
- <section class="advanced-grid"><article class="data-section"><div class="section-head"><div><h2>Kavurma Personeli</h2><p>Net üretim ve tava</p></div></div><table class="data-table"><thead><tr><th>Personel</th><th class="num">Net kg</th><th class="num">Tava</th><th class="num">kg/tava</th></tr></thead><tbody>@foreach(var x in Model.Stats.Personnel){<tr><td>@x.Personnel</td><td class="num">@x.RoastedKg.ToString("N0")</td><td class="num">@x.PanCount</td><td class="num">@x.KgPerPan.ToString("N1")</td></tr>}</tbody></table></article><article class="data-section"><div class="section-head"><div><h2>Günlük Hareket</h2><p>Girdi ve paketlenen kg</p></div></div><div class="bar-chart">@foreach(var point in Model.Stats.Trend){<div class="bar-day"><div class="bars"><i class="input" style="height:@((point.InputKg/Model.ChartMax*100).ToString("0",System.Globalization.CultureInfo.InvariantCulture))%"></i><i class="output" style="height:@((point.OutputKg/Model.ChartMax*100).ToString("0",System.Globalization.CultureInfo.InvariantCulture))%"></i></div><small>@point.Date.ToString("dd.MM")</small></div>}</div></article></section>
+ <section class="advanced-grid"><article class="data-section"><div class="section-head"><div><h2>Kavurma Personeli</h2><p>Net üretim ve tava</p></div></div><table class="data-table"><thead><tr><th>Personel</th><th class="num">Net kg</th><th class="num">Tava</th><th class="num">kg/tava</th></tr></thead><tbody>@foreach(var x in Model.Stats.Personnel){<tr><td>@x.Personnel</td><td class="num">@x.RoastedKg.ToString("N0")</td><td class="num">@x.PanCount</td><td class="num">@x.KgPerPan.ToString("N1")</td></tr>}</tbody></table></article></section>
 </details>

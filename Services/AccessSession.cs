@@ -17,6 +17,7 @@ public static class AccessSession
 
     public static int? PersonnelId(this HttpContext context) => context.Session.GetInt32(PersonnelIdKey);
     public static string? PersonnelName(this HttpContext context) => context.Session.GetString(PersonnelNameKey);
+    public static int? TaskNumber(this HttpContext context) => context.Session.GetInt32(TaskNumberKey);
     public static string? TaskPage(this HttpContext context) => context.Session.GetString(TaskPageKey);
 
     public static void StartAdmin(this HttpContext context)

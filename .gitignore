@@ -1,4 +1,7 @@
 .codex-work/
+.codex-build/
+publish/
+Properties/PublishProfiles/
 .vs/
 bin/
 obj/

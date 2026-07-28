@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.DataProtection;
-using System.Globalization;
 using SusamUretim.Web.Data;
 using SusamUretim.Web.Services;
 
@@ -46,9 +45,6 @@ try
     using var scope=app.Services.CreateScope();
     var repository=scope.ServiceProvider.GetRequiredService<SusamRepository>();
     await repository.EnsureAccessSchemaAsync();
-    var today=DateTime.Today;
-    scope.ServiceProvider.GetRequiredService<ExcelExportService>()
-        .ReadWeeklySummary(ISOWeek.GetYear(today),ISOWeek.GetWeekOfYear(today));
 }
 catch (Exception ex)
 {
