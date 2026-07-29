@@ -3,14 +3,13 @@
 @{ViewData["Title"]="Paketleme";}
 @if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
 <div class="@(Model.IsAdmin?"workspace-grid":"personnel-entry")">
-@if(Model.IsAdmin){
 <section class="data-section">
  <div class="section-head"><div><h2>Kayıtlar</h2><p>Son 100 paketleme işlemi</p></div><span class="count-badge">@Model.Records.Count kayıt</span></div>
  <partial name="Shared/_RecordFilter" model="Model.Filter"/>
  <div class="table-wrap"><table class="data-table"><thead><tr><th>Parti</th><th>Tarih</th><th>Ürün</th><th>Personel</th><th class="num">Ambalaj kg</th><th class="num">Adet</th><th class="num">Miktar</th><th class="num">Fire Miktarı</th><th></th></tr></thead><tbody>
- @foreach(var x in Model.Records){<tr><td><strong>@(x.PartiNo??"—")</strong></td><td>@(x.Tarih?.ToString("dd.MM.yyyy")??"—")</td><td>@(x.Urun??"—")</td><td>@(x.Personel??"—")</td><td class="num">@x.AmbalajAgirligiKg.ToString("0.###")</td><td class="num">@x.Adet</td><td class="num"><strong>@x.MiktarKg.ToString("0.###") kg</strong></td><td class="num">@(x.FireKg?.ToString("0.###")??"—") kg</td><td><div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></div></td></tr>}
+ @foreach(var x in Model.Records){<tr><td><strong>@(x.PartiNo??"—")</strong></td><td>@(x.Tarih?.ToString("dd.MM.yyyy")??"—")</td><td>@(x.Urun??"—")</td><td>@(x.Personel??"—")</td><td class="num">@x.AmbalajAgirligiKg.ToString("0.###")</td><td class="num">@x.Adet</td><td class="num"><strong>@x.MiktarKg.ToString("0.###") kg</strong></td><td class="num">@(x.FireKg?.ToString("0.###")??"—") kg</td><td><div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a>@if(Model.IsAdmin||x.Id==Model.Records.FirstOrDefault()?.Id){<form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form>}</div></td></tr>}
  </tbody></table></div>
-</section>}
+</section>
 <aside class="entry-panel">
  <div class="panel-head"><h2>@(Model.EditId is>0?"Kaydı düzenle":Model.IsAdmin?"Yeni kayıt":"Görev kaydı")</h2><span>@(Model.IsAdmin?"Paketleme":Model.PersonnelName)</span></div>
  <form method="post" class="entry-form"><input asp-for="EditId" type="hidden"/><div asp-validation-summary="All" class="validation"></div>

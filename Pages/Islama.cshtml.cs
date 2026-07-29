@@ -22,7 +22,7 @@ public sealed class IslamaModel(SusamRepository repository) : PageModel
 
     public async Task OnGetAsync()
     {
-        if(IsAdmin && EditId is > 0) Input=await repository.GetIslamaInputAsync(EditId.Value) ?? Input;
+        if(EditId is > 0){var x=await repository.GetIslamaInputAsync(EditId.Value,IsAdmin?null:HttpContext.PersonnelId());if(x is null)EditId=null;else Input=x;}
         await LoadAsync();
     }
 
@@ -35,7 +35,8 @@ public sealed class IslamaModel(SusamRepository repository) : PageModel
             Input.PartiNo=await repository.GetNextBatchNumberAsync(Input.SoymaBaslangici);
             ModelState.Remove("Input.PartiNo");
         }
-        if(!IsAdmin){if(EditId is > 0)return Forbid();Input.PersonelId=HttpContext.PersonnelId();}
+        if(!IsAdmin)Input.PersonelId=HttpContext.PersonnelId();
+        if(!IsAdmin&&EditId is>0&&await repository.GetIslamaInputAsync(EditId.Value,HttpContext.PersonnelId()) is null)return Forbid();
         if(Input.SoymaBitisi < Input.SoymaBaslangici) ModelState.AddModelError("Input.SoymaBitisi","Bitiş başlangıçtan önce olamaz.");
         if(!ModelState.IsValid){await LoadAsync();return Page();}
         try
@@ -49,10 +50,10 @@ public sealed class IslamaModel(SusamRepository repository) : PageModel
 
     public async Task<IActionResult> OnPostDeleteAsync(long id)
     {
-        if(!IsAdmin)return Forbid();
+        if(!IsAdmin&&(await repository.GetIslamaAsync(1,personnelId:HttpContext.PersonnelId())).FirstOrDefault()?.Id!=id)return Forbid();
         try{await repository.DeleteProductionRecordAsync("Islama",id);TempData["Success"]="Islama-soyma kaydı silindi.";}catch(Exception ex){TempData["Error"]=ex.Message;}
         return RedirectToPage();
     }
 
-    private async Task LoadAsync(){try{if(IsAdmin)Records=await repository.GetIslamaAsync(filter:Filter);Menseiler=await repository.GetMenseilerAsync();Urunler=await repository.GetUrunlerAsync();Personeller=await repository.GetPersonellerAsync();}catch(Exception ex){ErrorMessage=ex.Message;}}
+    private async Task LoadAsync(){try{Records=await repository.GetIslamaAsync(filter:Filter,personnelId:IsAdmin?null:HttpContext.PersonnelId());Menseiler=await repository.GetMenseilerAsync();Urunler=await repository.GetUrunlerAsync();Personeller=await repository.GetPersonellerAsync();}catch(Exception ex){ErrorMessage=ex.Message;}}
 }

@@ -26,7 +26,7 @@ public static class ProductionTasks
             [4] = ("Dolum", "Dolum", "/Dolum"),
             [6] = ("Degirmen", "Değirmen", "/Degirmen"),
             [7] = ("Kurutma", "Kurutma", "/Kurutma"),
-            [8] = ("Cop", "Çöp", "/Cop")
+            [8] = ("Cop", "Giriş Eleme Çöpü", "/Cop")
         };
 }
 
@@ -93,11 +93,13 @@ public sealed record KepekListItem(
 
 public sealed record DegirmenNobetListItem(
     long Id, DateTime Tarih, string Nobet, string Personel, string? Aciklama,
-    int SatirSayisi, decimal PureMiktariKg, decimal InceltilenMiktarKg);
+    int SatirNo, string FirinNoSergen, string Mensei, string PureMiktari,
+    decimal InceltilenMiktarKg, string TransferEdilenTank);
 
 public sealed record KurutmaNobetListItem(
     long Id, DateTime Tarih, string Nobet, string Personel, string? Aciklama,
-    int SatirSayisi, int YikamaSayisi, decimal KirecKg, int MakineSayisi);
+    int SatirNo, string Mensei, string Urun, int YikamaSayisi,
+    decimal KirecKg, int MakineSayisi);
 
 public sealed record CopListItem(
     long Id, DateTime Tarih, string Mensei, decimal CopKg);
@@ -203,7 +205,7 @@ public sealed class DegirmenSatirInput
 {
     [Required,StringLength(100)] public string FirinNoSergen{get;set;}="";
     [Range(1,int.MaxValue)] public int MenseiId{get;set;}
-    [Range(0.001,999999999)] public decimal PureMiktariKg{get;set;}
+    [Required,StringLength(200)] public string PureMiktari{get;set;}="";
     [Range(0.001,999999999)] public decimal InceltilenMiktarKg{get;set;}
     [Required,StringLength(100)] public string TransferEdilenTank{get;set;}="";
 }
@@ -235,4 +237,5 @@ public sealed class CopInput
     [Required,DataType(DataType.Date)] public DateTime? Tarih{get;set;}=DateTime.Today;
     [Range(1,int.MaxValue,ErrorMessage="Menşei seçimi zorunludur.")] public int MenseiId{get;set;}
     [Range(0.001,999999999,ErrorMessage="Çöp miktarı 0'dan büyük olmalıdır.")] public decimal CopKg{get;set;}
+    public int? PersonelId{get;set;}
 }

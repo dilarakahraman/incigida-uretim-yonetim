@@ -16,7 +16,7 @@
 <div class="calculation-flow">
  <section class="overview-kpis input-flow">
   <article><span>1 · Üretime Alınan</span><strong>@Model.Stats.IslamaKg.ToString("N0") kg</strong><small>Islama çekilen tonaj toplamı</small></article>
-  <article class="deduction"><span>2 · Çöp</span><strong>@Model.Stats.WasteKg.ToString("N0") kg</strong><small>Üretime alınandan düşülür</small></article>
+        <article class="deduction"><span>2 ·Islama Çöpü</span><strong>@Model.Stats.WasteKg.ToString("N0") kg</strong><small>Üretime alınandan düşülür</small></article>
   <article class="net"><span>3 · Net Islama Girdisi</span><strong>@netIslama.ToString("N0") kg</strong><small>Üretime alınan − çöp</small></article>
  </section>
  <section class="overview-kpis output-flow">
@@ -42,16 +42,16 @@
 <section class="simple-panel weekly-summary-panel">
  <header><div><h2>Değirmen ve Kurutma Özeti</h2><p>Seçilen haftanın SQL kayıtları</p></div><span>@(Model.Processes.DegirmenNobet+Model.Processes.KurutmaNobet) nöbet</span></header>
  <div class="weekly-summary-values">
-  <article><span>Değirmen Püre</span><strong>@Model.Processes.PureKg.ToString("N0") kg</strong><small>@Model.Processes.DegirmenNobet nöbet · @Model.Processes.DegirmenSatir satır</small></article>
-  <article><span>İnceltilen</span><strong>@Model.Processes.InceltilenKg.ToString("N0") kg</strong><small>Fark: @((Model.Processes.PureKg-Model.Processes.InceltilenKg).ToString("N0")) kg</small></article>
+  <article><span>Değirmen</span><strong>@Model.Processes.DegirmenSatir.ToString("N0") satır</strong><small>@Model.Processes.DegirmenNobet nöbet</small></article>
+  <article><span>İnceltilen</span><strong>@Model.Processes.InceltilenKg.ToString("N0") kg</strong><small>Değirmen satırları toplamı</small></article>
   <article><span>Kurutma Yıkama</span><strong>@Model.Processes.YikamaSayisi.ToString("N0")</strong><small>@Model.Processes.KurutmaNobet nöbet · @Model.Processes.KurutmaSatir satır</small></article>
   <article><span>Kireç / Makine</span><strong>@Model.Processes.KirecKg.ToString("N0") kg</strong><small>@Model.Processes.MakineSayisi.ToString("N0") makine</small></article>
  </div>
  <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>Nöbet</th><th class="num">Püre</th><th class="num">İnceltilen</th><th class="num">Yıkama</th><th class="num">Kireç</th><th class="num">Makine</th></tr></thead>
+  <thead><tr><th>Nöbet</th><th class="num">İnceltilen</th><th class="num">Yıkama</th><th class="num">Kireç</th><th class="num">Makine</th></tr></thead>
   <tbody>
-  @foreach(var x in Model.Processes.Shifts){<tr><td><strong>@x.Nobet</strong></td><td class="num">@x.PureKg.ToString("N0") kg</td><td class="num">@x.InceltilenKg.ToString("N0") kg</td><td class="num">@x.YikamaSayisi.ToString("N0")</td><td class="num">@x.KirecKg.ToString("N0") kg</td><td class="num">@x.MakineSayisi.ToString("N0")</td></tr>}
-  @if(Model.Processes.Shifts.Count==0){<tr><td colspan="6" class="empty">Seçilen haftada değirmen veya kurutma kaydı yok.</td></tr>}
+  @foreach(var x in Model.Processes.Shifts){<tr><td><strong>@x.Nobet</strong></td><td class="num">@x.InceltilenKg.ToString("N0") kg</td><td class="num">@x.YikamaSayisi.ToString("N0")</td><td class="num">@x.KirecKg.ToString("N0") kg</td><td class="num">@x.MakineSayisi.ToString("N0")</td></tr>}
+  @if(Model.Processes.Shifts.Count==0){<tr><td colspan="5" class="empty">Seçilen haftada değirmen veya kurutma kaydı yok.</td></tr>}
   </tbody>
  </table></div>
 </section>

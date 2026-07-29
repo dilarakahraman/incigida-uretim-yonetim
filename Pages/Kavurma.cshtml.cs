@@ -22,8 +22,7 @@ public sealed class KavurmaModel(SusamRepository repository) : PageModel
 
     public async Task OnGetAsync()
     {
-        if (IsAdmin && EditId is > 0)
-            Input = await repository.GetKavurmaInputAsync(EditId.Value) ?? Input;
+        if (EditId is > 0){var x=await repository.GetKavurmaInputAsync(EditId.Value,IsAdmin?null:HttpContext.PersonnelId());if(x is null)EditId=null;else Input=x;}
         await LoadAsync();
     }
 
@@ -32,9 +31,9 @@ public sealed class KavurmaModel(SusamRepository repository) : PageModel
         if (!IsAdmin && HttpContext.TaskNumber() != 2) return Forbid();
         if (!IsAdmin)
         {
-            if (EditId is > 0) return Forbid();
             Input.PersonelId = HttpContext.PersonnelId();
         }
+        if(!IsAdmin&&EditId is>0&&await repository.GetKavurmaInputAsync(EditId.Value,HttpContext.PersonnelId()) is null)return Forbid();
 
         if (!ModelState.IsValid)
         {
@@ -67,7 +66,7 @@ public sealed class KavurmaModel(SusamRepository repository) : PageModel
 
     public async Task<IActionResult> OnPostDeleteAsync(long id)
     {
-        if (!IsAdmin) return Forbid();
+        if(!IsAdmin&&(await repository.GetKavurmaAsync(1,personnelId:HttpContext.PersonnelId())).FirstOrDefault()?.Id!=id)return Forbid();
         try
         {
             await repository.DeleteProductionRecordAsync("Kavurma", id);
@@ -81,7 +80,7 @@ public sealed class KavurmaModel(SusamRepository repository) : PageModel
     {
         try
         {
-            if (IsAdmin) Records = await repository.GetKavurmaAsync(filter: Filter);
+            Records = await repository.GetKavurmaAsync(filter: Filter,personnelId:IsAdmin?null:HttpContext.PersonnelId());
             Personeller = await repository.GetPersonellerAsync();
             Menseiler = await repository.GetMenseilerAsync();
             Urunler = await repository.GetUrunlerAsync();

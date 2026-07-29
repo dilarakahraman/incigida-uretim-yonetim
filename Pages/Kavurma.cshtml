@@ -5,8 +5,6 @@
 @if (Model.ErrorMessage is not null) { <div class="notice error">@Model.ErrorMessage</div> }
 
 <div class="@(Model.IsAdmin ? "workspace-grid" : "personnel-entry")">
-@if (Model.IsAdmin)
-{
     <section class="data-section">
         <div class="section-head">
             <div><h2>Kavurma kayıtları</h2><p>Son 100 kavurma işlemi</p></div>
@@ -26,13 +24,12 @@
                     <td>@(x.Urun ?? "—")</td>
                     <td class="num"><strong>@x.NetTonajKg.ToString("0.###") kg</strong></td>
                     <td class="num">@(x.TavaSayisi?.ToString() ?? "—")</td>
-                    <td><div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></div></td>
+                    <td><div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a>@if(Model.IsAdmin||x.Id==Model.Records.FirstOrDefault()?.Id){<form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form>}</div></td>
                 </tr>
             }
             </tbody>
         </table></div>
     </section>
-}
     <aside class="entry-panel">
         <div class="panel-head"><h2>@(Model.EditId is > 0 ? "Kavurma kaydını düzenle" : Model.IsAdmin ? "Yeni kavurma kaydı" : "Kavurma görev kaydı")</h2><span>@(Model.IsAdmin ? "Kavurma" : Model.PersonnelName)</span></div>
         <form method="post" class="entry-form">

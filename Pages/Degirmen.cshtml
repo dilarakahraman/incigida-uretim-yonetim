@@ -3,26 +3,25 @@
 @{ViewData["Title"]="Değirmen";}
 @if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
 
-@if(Model.IsAdmin)
-{
 <section class="data-section shift-history">
-    <div class="section-head"><div><h2>Değirmen nöbetleri</h2><p>Son 100 nöbet ve satır toplamları</p></div><span class="count-badge">@Model.Records.Count nöbet</span></div>
+    <div class="section-head"><div><h2>Değirmen kayıtları</h2><p>Son 100 değirmen satırı ve ortak açıklaması</p></div><span class="count-badge">@Model.Records.Count satır</span></div>
     <div class="table-wrap"><table class="data-table">
-        <thead><tr><th>Tarih</th><th>Nöbet</th><th>Personel</th><th class="num">Satır</th><th class="num">Püre</th><th class="num">İnceltilen</th><th>Açıklama</th><th></th></tr></thead>
+        <thead><tr><th>Tarih</th><th>Nöbet</th><th>Personel</th><th class="num">#</th><th>Fırın / Sergen</th><th>Menşei</th><th>Püre</th><th class="num">İnceltilen</th><th>Tank</th><th>Ortak açıklama</th><th></th></tr></thead>
         <tbody>
         @foreach(var x in Model.Records)
         {
-            <tr><td><strong>@x.Tarih.ToString("dd.MM.yyyy")</strong></td><td>@x.Nobet</td><td>@x.Personel</td><td class="num">@x.SatirSayisi</td><td class="num">@x.PureMiktariKg.ToString("0.###") kg</td><td class="num">@x.InceltilenMiktarKg.ToString("0.###") kg</td><td>@(x.Aciklama??"—")</td><td class="num"><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu nöbet ve bağlı tüm değirmen satırları silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></td></tr>
+            <tr><td><strong>@x.Tarih.ToString("dd.MM.yyyy")</strong></td><td>@x.Nobet</td><td>@x.Personel</td><td class="num">@x.SatirNo</td><td>@x.FirinNoSergen</td><td>@x.Mensei</td><td>@x.PureMiktari</td><td class="num">@x.InceltilenMiktarKg.ToString("0.###") kg</td><td>@x.TransferEdilenTank</td><td>@(x.Aciklama??"—")</td><td><div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a>@if(Model.IsAdmin||(x.Id==Model.Records.FirstOrDefault()?.Id&&x.SatirNo==1)){<form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu nöbet ve bağlı tüm değirmen satırları silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Nöbeti sil</button></form>}</div></td></tr>
         }
         </tbody>
     </table></div>
 </section>
-}
 
 <section class="data-section sheet-entry-section" data-grid-editor>
-    <div class="section-head"><div><h2>Yeni değirmen nöbeti</h2><p>Excel gibi satır ekleyin; kaydederken SQL'e normal detay kayıtları yazılır</p></div><span class="count-badge">Ortak açıklama</span></div>
+    <div class="section-head"><div><h2>@(Model.EditId is>0?"Değirmen kaydını düzenle":"Yeni değirmen nöbeti")</h2><p>Excel gibi satır ekleyin; kaydederken SQL'e normal detay kayıtları yazılır</p></div><span class="count-badge">Ortak açıklama</span></div>
     <form method="post" class="sheet-entry-form">
+        <input asp-for="EditId" type="hidden"/>
         <div asp-validation-summary="All" class="validation sheet-validation"></div>
+        @if(Model.EditId is>0){<div class="edit-banner"><span>#@Model.EditId numaralı nöbet düzenleniyor</span><a asp-page="/Degirmen">İptal</a></div>}
         <div class="shift-header-fields">
             <label>Tarih<input asp-for="Input.Tarih" type="date"/></label>
             <label>Nöbet<select asp-for="Input.Nobet">
@@ -44,7 +43,7 @@
         </div>
         <div class="spreadsheet-wrap">
             <table class="spreadsheet-entry-table">
-                <thead><tr><th>#</th><th>Fırın no / Sergen</th><th>Menşei</th><th>Püre miktarı (kg)</th><th>İnceltilen miktar (kg)</th><th>Transfer edilen tank</th><th></th></tr></thead>
+                <thead><tr><th>#</th><th>Fırın no / Sergen</th><th>Menşei</th><th>Püre miktarı</th><th>İnceltilen miktar (kg)</th><th>Transfer edilen tank</th><th></th></tr></thead>
                 <tbody data-grid-rows>
                 @for(var i=0;i<Model.Input.Satirlar.Count;i++)
                 {
@@ -52,14 +51,14 @@
                         <td class="row-number">@(i+1)</td>
                         <td><input asp-for="Input.Satirlar[i].FirinNoSergen" placeholder="Fırın 1 / Sergen A"/></td>
                         <td><select asp-for="Input.Satirlar[i].MenseiId"><option value="">Seçin</option>@foreach(var origin in Model.Menseiler){<option value="@origin.Id">@origin.Name</option>}</select></td>
-                        <td><input asp-for="Input.Satirlar[i].PureMiktariKg" type="number" min="0.001" step="0.001"/></td>
+                        <td><input asp-for="Input.Satirlar[i].PureMiktari" type="text" maxlength="200" placeholder="Püre bilgisini yazın"/></td>
                         <td><input asp-for="Input.Satirlar[i].InceltilenMiktarKg" type="number" min="0.001" step="0.001"/></td>
                         <td><input asp-for="Input.Satirlar[i].TransferEdilenTank" placeholder="Tank 3"/></td>
                         <td><button type="button" class="grid-row-delete" data-grid-remove aria-label="Satırı sil">×</button></td>
                     </tr>
                 }
                 </tbody>
-                <tfoot><tr><td colspan="3">Toplam</td><td data-sum-column="PureMiktariKg">0</td><td data-sum-column="InceltilenMiktarKg">0</td><td colspan="2"></td></tr></tfoot>
+                <tfoot><tr><td colspan="4">Toplam</td><td data-sum-column="InceltilenMiktarKg">0</td><td colspan="2"></td></tr></tfoot>
             </table>
         </div>
         <template data-grid-template>
@@ -67,12 +66,12 @@
                 <td class="row-number">__number__</td>
                 <td><input name="Input.Satirlar[__index__].FirinNoSergen" placeholder="Fırın 1 / Sergen A" required maxlength="100"/></td>
                 <td><select name="Input.Satirlar[__index__].MenseiId" required><option value="">Seçin</option>@foreach(var origin in Model.Menseiler){<option value="@origin.Id">@origin.Name</option>}</select></td>
-                <td><input name="Input.Satirlar[__index__].PureMiktariKg" type="number" min="0.001" step="0.001" required/></td>
+                <td><input name="Input.Satirlar[__index__].PureMiktari" type="text" maxlength="200" placeholder="Püre bilgisini yazın" required/></td>
                 <td><input name="Input.Satirlar[__index__].InceltilenMiktarKg" type="number" min="0.001" step="0.001" required/></td>
                 <td><input name="Input.Satirlar[__index__].TransferEdilenTank" placeholder="Tank 3" required maxlength="100"/></td>
                 <td><button type="button" class="grid-row-delete" data-grid-remove aria-label="Satırı sil">×</button></td>
             </tr>
         </template>
-        <div class="sheet-form-actions"><button type="button" class="btn-grid-add" data-grid-add>+ Satır ekle</button><button class="btn-primary-app" type="submit">Kaydet</button></div>
+        <div class="sheet-form-actions"><button type="button" class="btn-grid-add" data-grid-add>+ Satır ekle</button><button class="btn-primary-app" type="submit">@(Model.EditId is>0?"Değişiklikleri kaydet":"Kaydet")</button></div>
     </form>
 </section>
