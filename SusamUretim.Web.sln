@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.37502.11 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SusamUretim.Web", "SusamUretim.Web.csproj", "{0A1B893F-87B5-FD7B-F260-96564E3BDEA9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SusamUretim.Web.Tests", "SusamUretim.Web.Tests\SusamUretim.Web.Tests.csproj", "{49B6E32D-A916-4E67-8D34-C53D86D6CC31}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{0A1B893F-87B5-FD7B-F260-96564E3BDEA9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0A1B893F-87B5-FD7B-F260-96564E3BDEA9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0A1B893F-87B5-FD7B-F260-96564E3BDEA9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49B6E32D-A916-4E67-8D34-C53D86D6CC31}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49B6E32D-A916-4E67-8D34-C53D86D6CC31}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49B6E32D-A916-4E67-8D34-C53D86D6CC31}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49B6E32D-A916-4E67-8D34-C53D86D6CC31}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
