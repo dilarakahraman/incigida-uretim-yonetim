@@ -10,6 +10,7 @@ namespace SusamUretim.Web.Services;
 
 public sealed class ExcelExportService
 {
+    private static readonly SemaphoreSlim ExportLock = new(1, 1);
     private static readonly object CatalogLock=new();
     private static ExcelDataCatalog? CachedCatalog;
     private static string? CachedCatalogPath;
@@ -19,7 +20,8 @@ public sealed class ExcelExportService
     private static string? WeeklySummaryCachePath;
     private static DateTime WeeklySummaryCacheWriteTime;
     private readonly string _connectionString;
-    private readonly string _workbookPath;
+    private readonly string _templateWorkbookPath;
+    private readonly string _workbookPathPattern;
     private readonly string _backupDirectory;
     private readonly string _templateSheet;
 
@@ -27,12 +29,15 @@ public sealed class ExcelExportService
     {
         _connectionString = configuration.GetConnectionString("SusamUretim")
             ?? throw new InvalidOperationException("SusamUretim bağlantı bilgisi bulunamadı.");
-        _workbookPath = ResolvePath(environment.ContentRootPath, options.Value.WorkbookPath);
+        _templateWorkbookPath = ResolvePath(environment.ContentRootPath, options.Value.WorkbookPath);
+        _workbookPathPattern = string.IsNullOrWhiteSpace(options.Value.WorkbookPathPattern)
+            ? _templateWorkbookPath
+            : ResolvePath(environment.ContentRootPath, options.Value.WorkbookPathPattern);
         _backupDirectory = ResolvePath(environment.ContentRootPath, options.Value.BackupDirectory);
         _templateSheet = options.Value.TemplateSheet;
     }
 
-    public string WorkbookPath => _workbookPath;
+    public string WorkbookPath => WorkbookPathForYear(ExcelExportRouting.Year(DateTime.Today));
 
     public List<LookupItem> FilterOrigins(IEnumerable<LookupItem> values) =>
         FilterLookups(values,ReadDataCatalog().Origins);
@@ -62,12 +67,12 @@ public sealed class ExcelExportService
 
     public ExcelDataCatalog ReadDataCatalog()
     {
-        if (!File.Exists(_workbookPath)) throw new FileNotFoundException("Excel dosyası bulunamadı.",_workbookPath);
-        var writeTime=File.GetLastWriteTimeUtc(_workbookPath);
+        if (!File.Exists(_templateWorkbookPath)) throw new FileNotFoundException("Excel dosyası bulunamadı.",_templateWorkbookPath);
+        var writeTime=File.GetLastWriteTimeUtc(_templateWorkbookPath);
         lock(CatalogLock)
         {
-            if(CachedCatalog is not null&&CachedCatalogPath==_workbookPath&&CachedCatalogWriteTime==writeTime)return CachedCatalog;
-            using var stream=new FileStream(_workbookPath,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
+            if(CachedCatalog is not null&&CachedCatalogPath==_templateWorkbookPath&&CachedCatalogWriteTime==writeTime)return CachedCatalog;
+            using var stream=new FileStream(_templateWorkbookPath,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
             using var workbook=new XLWorkbook(stream);
             var sheet=workbook.Worksheets.FirstOrDefault(x=>string.Equals(x.Name.Trim(),"DATA",StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidOperationException("Excel dosyasında DATA sayfası bulunamadı.");
@@ -80,32 +85,33 @@ public sealed class ExcelExportService
             var packages=Enumerable.Range(2,Math.Max(0,last-1)).Select(row=>$"{sheet.Cell(row,16).GetString().Trim()} {sheet.Cell(row,17).GetString().Trim()} kg".Trim())
                 .Where(x=>x.Length>3).Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
             CachedCatalog=new(Texts(sheet,2,last),Texts(sheet,5,last),Texts(sheet,8,last),weights,Texts(sheet,14,last),packages);
-            CachedCatalogPath=_workbookPath;CachedCatalogWriteTime=writeTime;
+            CachedCatalogPath=_templateWorkbookPath;CachedCatalogWriteTime=writeTime;
             return CachedCatalog;
         }
     }
 
     public ExcelWeeklySummary? ReadWeeklySummary(int year,int week,string? product=null,string? origin=null)
     {
-        if(!File.Exists(_workbookPath))return null;
-        var writeTime=File.GetLastWriteTimeUtc(_workbookPath);
+        var workbookPath=WorkbookPathForYear(year);
+        if(!File.Exists(workbookPath))return null;
+        var writeTime=File.GetLastWriteTimeUtc(workbookPath);
         var key=$"{year}|{week}|{product?.Trim().ToUpperInvariant()}|{origin?.Trim().ToUpperInvariant()}";
         lock(WeeklySummaryLock)
         {
-            if(WeeklySummaryCachePath!=_workbookPath||WeeklySummaryCacheWriteTime!=writeTime)
+            if(WeeklySummaryCachePath!=workbookPath||WeeklySummaryCacheWriteTime!=writeTime)
             {
-                WeeklySummaryCache.Clear();WeeklySummaryCachePath=_workbookPath;WeeklySummaryCacheWriteTime=writeTime;
+                WeeklySummaryCache.Clear();WeeklySummaryCachePath=workbookPath;WeeklySummaryCacheWriteTime=writeTime;
             }
             if(WeeklySummaryCache.TryGetValue(key,out var cached))return cached;
-            var summary=ReadWeeklySummaryCore(year,week,product,origin);
+            var summary=ReadWeeklySummaryCore(workbookPath,year,week,product,origin);
             WeeklySummaryCache[key]=summary;
             return summary;
         }
     }
 
-    private ExcelWeeklySummary? ReadWeeklySummaryCore(int year,int week,string? product,string? origin)
+    private static ExcelWeeklySummary? ReadWeeklySummaryCore(string workbookPath,int year,int week,string? product,string? origin)
     {
-        using var stream=new FileStream(_workbookPath,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
+        using var stream=new FileStream(workbookPath,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);
         using var workbook=new XLWorkbook(stream);
         var sheet=workbook.Worksheets.FirstOrDefault(x=>TryGetWeek(x.Name)==week&&x.Cell(1,1).GetString().Contains(year.ToString(),StringComparison.OrdinalIgnoreCase));
         if(sheet is null)return null;
@@ -146,103 +152,90 @@ public sealed class ExcelExportService
         from = from.Date;
         to = to.Date;
         if (to < from) throw new ArgumentException("Bitiş tarihi başlangıç tarihinden önce olamaz.");
-        if (!File.Exists(_workbookPath)) throw new FileNotFoundException("Excel dosyası bulunamadı.", _workbookPath);
-
-        await EnsureSchemaAsync(cancellationToken);
-        var data = await LoadAsync(from, to, cancellationToken);
-        var count = data.Islama.Count + data.Kavurma.Count + data.Paketleme.Count + data.Dolum.Count + data.Kepek.Count + data.Deletions.Count;
-        if (count == 0) return new ExcelExportResult(0, 0, _workbookPath, "");
-
-        Directory.CreateDirectory(_backupDirectory);
-        EnsureWorkbookIsAvailable();
-        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        var backupPath = Path.Combine(_backupDirectory, $"{Path.GetFileNameWithoutExtension(_workbookPath)}-{stamp}.xlsx");
-        var tempPath = Path.Combine(Path.GetDirectoryName(_workbookPath)!, $".{Path.GetFileNameWithoutExtension(_workbookPath)}-{Guid.NewGuid():N}.tmp.xlsx");
-        File.Copy(_workbookPath, backupPath, false);
-
-        var marks = new List<ExportMark>(count);
-        var sheetNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var replaced = false;
+        var isoYears=Enumerable.Range(0,(to-from).Days+1).Select(day=>ISOWeek.GetYear(from.AddDays(day))).Distinct().ToList();
+        if(isoYears.Count!=1)
+            throw new InvalidOperationException("Tek aktarımda yalnızca bir ISO yılı seçilebilir. Yılları ayrı ayrı aktarın.");
+        if(!await ExportLock.WaitAsync(0,cancellationToken))
+            throw new InvalidOperationException("Şu anda başka bir Excel aktarımı devam ediyor. İşlem tamamlandıktan sonra tekrar deneyin.");
         try
         {
-            using (var workbook = new XLWorkbook(_workbookPath))
-            {
-                foreach (var deletion in data.Deletions)
-                {
-                    if (workbook.Worksheets.TryGetWorksheet(deletion.Sheet, out var deleteSheet))
-                    {
-                        ClearRecordRow(deleteSheet, deletion.Table, deletion.Row);
-                        sheetNames.Add(deleteSheet.Name);
-                    }
-                }
-                foreach (var item in data.Islama)
-                {
-                    var desired = GetWeekSheet(workbook, item.SoymaBitisi);
-                    var (sheet, existingRow) = ResolveWriteTarget(workbook, desired, "Islama", item.Id, data);
-                    var row = WriteIslama(sheet, item, existingRow);
-                    marks.Add(new("Islama", item.Id, sheet.Name, row));
-                    sheetNames.Add(sheet.Name);
-                }
-                foreach (var item in data.Kavurma)
-                {
-                    var desired = GetWeekSheet(workbook, item.Tarih);
-                    var (sheet, existingRow) = ResolveWriteTarget(workbook, desired, "Kavurma", item.Id, data);
-                    var row = WriteKavurma(sheet, item, existingRow);
-                    marks.Add(new("Kavurma", item.Id, sheet.Name, row));
-                    sheetNames.Add(sheet.Name);
-                }
-                foreach (var item in data.Paketleme)
-                {
-                    var desired = GetWeekSheet(workbook, item.Tarih);
-                    var (sheet, existingRow) = ResolveWriteTarget(workbook, desired, "Paketleme", item.Id, data);
-                    var row = WritePaketleme(sheet, item, existingRow);
-                    marks.Add(new("Paketleme", item.Id, sheet.Name, row));
-                    sheetNames.Add(sheet.Name);
-                }
-                foreach (var item in data.Dolum)
-                {
-                    var desired = GetWeekSheet(workbook, item.Tarih);
-                    var (sheet, existingRow) = ResolveWriteTarget(workbook, desired, "Dolum", item.Id, data);
-                    var row = WriteDolum(sheet, item, existingRow);
-                    marks.Add(new("Dolum", item.Id, sheet.Name, row));
-                    sheetNames.Add(sheet.Name);
-                }
-                foreach (var item in data.Kepek)
-                {
-                    var desired = GetWeekSheet(workbook, item.Tarih);
-                    var (sheet, existingRow) = ResolveWriteTarget(workbook, desired, "Kepek", item.Id, data);
-                    var row = WriteKepek(sheet, item, existingRow);
-                    marks.Add(new("Kepek", item.Id, sheet.Name, row));
-                    sheetNames.Add(sheet.Name);
-                }
-                workbook.SaveAs(tempPath);
-            }
+            var workbookPath=WorkbookPathForYear(isoYears[0]);
+            EnsureYearWorkbook(workbookPath);
+            await EnsureSchemaAsync(cancellationToken);
+            var data = await LoadAsync(from, to, workbookPath, cancellationToken);
+            var count = data.Islama.Count + data.Kavurma.Count + data.Paketleme.Count + data.Dolum.Count + data.Kepek.Count + data.Deletions.Count;
+            if (count == 0) return new ExcelExportResult(0, 0, workbookPath, "");
 
-            File.Move(tempPath, _workbookPath, true);
-            replaced = true;
-            await SaveMarksAsync(marks, data.Deletions, backupPath, cancellationToken);
-            return new ExcelExportResult(count, sheetNames.Count, _workbookPath, backupPath);
+            Directory.CreateDirectory(_backupDirectory);
+            EnsureWorkbookIsAvailable(workbookPath);
+            var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var backupPath = Path.Combine(_backupDirectory, $"{Path.GetFileNameWithoutExtension(workbookPath)}-{stamp}.xlsx");
+            var tempPath = Path.Combine(Path.GetDirectoryName(workbookPath)!, $".{Path.GetFileNameWithoutExtension(workbookPath)}-{Guid.NewGuid():N}.tmp.xlsx");
+            File.Copy(workbookPath, backupPath, false);
+
+            var marks = new List<ExportMark>(count);
+            var sheetNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var replaced = false;
+            try
+            {
+                using (var workbook = new XLWorkbook(workbookPath))
+                {
+                    foreach (var deletion in data.Deletions)
+                    {
+                        if (workbook.Worksheets.TryGetWorksheet(deletion.Sheet, out var deleteSheet))
+                        {
+                            ClearRecordRow(deleteSheet, deletion.Table, deletion.Row);
+                            sheetNames.Add(deleteSheet.Name);
+                        }
+                    }
+                    foreach (var item in data.Islama) WriteTracked(workbook,data,marks,sheetNames,"Islama",item.Id,item.SoymaBitisi,(s,r)=>WriteIslama(s,item,r));
+                    foreach (var item in data.Kavurma) WriteTracked(workbook,data,marks,sheetNames,"Kavurma",item.Id,item.Tarih,(s,r)=>WriteKavurma(s,item,r));
+                    foreach (var item in data.Paketleme) WriteTracked(workbook,data,marks,sheetNames,"Paketleme",item.Id,item.Tarih,(s,r)=>WritePaketleme(s,item,r));
+                    foreach (var item in data.Dolum) WriteTracked(workbook,data,marks,sheetNames,"Dolum",item.Id,item.Tarih,(s,r)=>WriteDolum(s,item,r));
+                    foreach (var item in data.Kepek) WriteTracked(workbook,data,marks,sheetNames,"KavurmaKepek",item.Id,item.Tarih,(s,r)=>WriteKepek(s,item,r));
+                    workbook.SaveAs(tempPath);
+                }
+
+                File.Move(tempPath, workbookPath, true);
+                replaced = true;
+                await SaveMarksAsync(marks, data.Deletions, workbookPath, cancellationToken);
+                return new ExcelExportResult(count, sheetNames.Count, workbookPath, backupPath);
+            }
+            catch (Exception ex)
+            {
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+                if (replaced) File.Copy(backupPath, workbookPath, true);
+                await LogFailureAsync(ex, workbookPath, cancellationToken);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            if (File.Exists(tempPath)) File.Delete(tempPath);
-            if (replaced) File.Copy(backupPath, _workbookPath, true);
-            await LogFailureAsync(ex, cancellationToken);
-            throw;
-        }
+        finally { ExportLock.Release(); }
+    }
+
+    private void WriteTracked(XLWorkbook workbook,ExportData data,List<ExportMark> marks,HashSet<string> sheetNames,
+        string table,long id,DateTime date,Func<IXLWorksheet,int?,int> write)
+    {
+        var desired=GetWeekSheet(workbook,date);
+        var (sheet,existingRow)=ResolveWriteTarget(workbook,desired,table,id,data);
+        var row=write(sheet,existingRow);
+        marks.Add(new(table,id,sheet.Name,row));
+        sheetNames.Add(sheet.Name);
     }
 
     private IXLWorksheet GetWeekSheet(XLWorkbook workbook, DateTime date)
     {
+        var isoYear = ISOWeek.GetYear(date);
         var week = ISOWeek.GetWeekOfYear(date);
+        // Her dosya tek bir yıla aittir; aynı dosyada hafta numarası yeterlidir.
         var existing = workbook.Worksheets.FirstOrDefault(x => TryGetWeek(x.Name) == week);
         if (existing is not null) return existing;
-        if (!workbook.Worksheets.TryGetWorksheet(_templateSheet, out var template))
+        if (!workbook.Worksheets.TryGetWorksheet("ŞABLON", out var template) &&
+            !workbook.Worksheets.TryGetWorksheet(_templateSheet, out template))
             throw new InvalidOperationException($"Excel şablon sayfası bulunamadı: {_templateSheet}");
 
         var name = $"{week}. Hafta";
         var sheet = template.CopyTo(name);
-        InitializeWeekSheet(sheet, date.Year, week);
+        InitializeWeekSheet(sheet, isoYear, week);
         return sheet;
     }
 
@@ -256,7 +249,7 @@ public sealed class ExcelExportService
         var kepekHeader = FindRow(sheet, 13, "Tarih", kepekTitle);
         var lastRow = Math.Max(sheet.LastRowUsed()?.RowNumber() ?? 120, kepekHeader + 8);
 
-        sheet.Range(islamaHeader + 1, 1, kavurmaTitle - 1, 17).Clear(XLClearOptions.Contents);
+        sheet.Range(islamaHeader + 1, 1, kavurmaTitle - 1, 19).Clear(XLClearOptions.Contents);
         for (var row = islamaHeader + 1; row < kavurmaTitle; row++)
         {
             sheet.Cell(row, 10).FormulaA1 = $"IFERROR((I{row}-H{row})*1440,\"\")";
@@ -279,7 +272,7 @@ public sealed class ExcelExportService
         for (var row = dolumHeader + 1; row < kepekTitle; row++)
             sheet.Cell(row, 17).FormulaA1 = $"IFERROR(O{row}*P{row},0)";
 
-        sheet.Range(kepekHeader + 1, 13, lastRow, 20).Clear(XLClearOptions.Contents);
+        sheet.Range(kepekHeader + 1, 13, lastRow, 21).Clear(XLClearOptions.Contents);
         var monday = ISOWeek.ToDateTime(year, week, DayOfWeek.Monday);
         var sunday = monday.AddDays(6);
         sheet.Cell(1, 1).Value = $"HAFTALIK ISLAMA-SOYMA TABLOSU {week}. HAFTA ({monday:dd.MM.yyyy}-{sunday:dd.MM.yyyy})";
@@ -289,26 +282,30 @@ public sealed class ExcelExportService
     {
         var header = FindRow(sheet, 1, "Barkod Seri");
         var boundary = FindRow(sheet, 1, "KAVURMA TABLOSU");
-        sheet.Cell(header,18).Value="Açıklama";
+        var headers = new[]{"Havuz No","Islama Tarihi","Islama Başlangıç - Bitiş","Soyma Başlangıcı",
+            "Soyma Bitişi","Soyma Süresi (dk)","Saatlik Tonaj","Ekran Tonajı","Çekilen Tonaj",
+            "Silo","Menşei","Ürün","Net Tonaj","Açıklama"};
+        for(var column=6;column<=19;column++)sheet.Cell(header,column).Value=headers[column-6];
         var row = existingRow ?? NextRowBefore(sheet, header + 1, boundary, r => HasValue(sheet.Cell(r, 4)));
         Set(sheet.Cell(row, 1), item.BarkodSeri);
         SetDate(sheet.Cell(row, 2), item.HamSusamGelisTarihi, "dd.MM.yyyy");
         Set(sheet.Cell(row, 3), item.CopKg);
         sheet.Cell(row, 4).Value = item.PartiNo;
         SetDate(sheet.Cell(row, 5), item.NobetTarihi, "dd.MM.yyyy");
-        SetDate(sheet.Cell(row, 6), item.IslamaBaslangici?.Date, "dd.MM.yyyy");
-        Set(sheet.Cell(row, 7), TimeRange(item.IslamaBaslangici, item.IslamaBitisi));
-        SetDate(sheet.Cell(row, 8), item.SoymaBaslangici, "dd.MM.yyyy HH:mm");
-        SetDate(sheet.Cell(row, 9), item.SoymaBitisi, "dd.MM.yyyy HH:mm");
-        sheet.Cell(row, 10).FormulaA1 = $"(I{row}-H{row})*1440";
-        sheet.Cell(row, 11).FormulaA1 = $"IFERROR((M{row}/J{row})*60,\"\")";
-        Set(sheet.Cell(row, 12), item.EkranTonajiKg);
-        sheet.Cell(row, 13).Value = item.CekilenTonajKg;
-        Set(sheet.Cell(row, 14), item.Silo);
-        sheet.Cell(row, 15).Value = item.Mensei;
-        sheet.Cell(row, 16).Value = item.Urun;
-        sheet.Cell(row, 17).FormulaA1 = $"M{row}";
-        Set(sheet.Cell(row,18),item.Aciklama);
+        Set(sheet.Cell(row, 6), item.HavuzNo);
+        SetDate(sheet.Cell(row, 7), item.IslamaBaslangici?.Date, "dd.MM.yyyy");
+        Set(sheet.Cell(row, 8), TimeRange(item.IslamaBaslangici, item.IslamaBitisi));
+        SetDate(sheet.Cell(row, 9), item.SoymaBaslangici, "dd.MM.yyyy HH:mm");
+        SetDate(sheet.Cell(row, 10), item.SoymaBitisi, "dd.MM.yyyy HH:mm");
+        sheet.Cell(row, 11).FormulaA1 = $"(J{row}-I{row})*1440";
+        sheet.Cell(row, 12).FormulaA1 = $"IFERROR((N{row}/K{row})*60,\"\")";
+        Set(sheet.Cell(row, 13), item.EkranTonajiKg);
+        sheet.Cell(row, 14).Value = item.CekilenTonajKg;
+        Set(sheet.Cell(row, 15), item.Silo);
+        sheet.Cell(row, 16).Value = item.Mensei;
+        sheet.Cell(row, 17).Value = item.Urun;
+        sheet.Cell(row, 18).FormulaA1 = $"N{row}";
+        Set(sheet.Cell(row,19),item.Aciklama);
         return row;
     }
 
@@ -381,7 +378,6 @@ public sealed class ExcelExportService
     {
         var title = FindRow(sheet, 13, "KURUTULMUŞ KEPEK TABLOSU");
         var header = FindRow(sheet, 13, "Tarih", title);
-        sheet.Cell(header,21).Value="Açıklama";
         var totalRow = sheet.Column(17).CellsUsed()
             .FirstOrDefault(x => x.Address.RowNumber > header && HasValue(x))?.Address.RowNumber;
         var row = existingRow ?? (totalRow.HasValue
@@ -390,8 +386,8 @@ public sealed class ExcelExportService
         SetDate(sheet.Cell(row, 13), item.Tarih, "dd.MM.yyyy");
         sheet.Cell(row, 16).Value = item.PaketlemeMiktariKg;
         Set(sheet.Cell(row, 18), item.UrunCinsi);
+        Set(sheet.Cell(row, 19), item.Personel);
         Set(sheet.Cell(row, 20), item.PersonelSayisi);
-        Set(sheet.Cell(row,21),item.Aciklama);
         return row;
     }
 
@@ -414,11 +410,12 @@ public sealed class ExcelExportService
     {
         var (first, last) = table switch
         {
-            "Islama" => (1,18),
+            "Islama" => (1,19),
             "Kavurma" => (1,15),
             "Paketleme" => (1,11),
             "Dolum" => (13,22),
             "Kepek" => (13,21),
+            "KavurmaKepek" => (13,21),
             _ => throw new ArgumentOutOfRangeException(nameof(table))
         };
         sheet.Range(row, first, row, last).Clear(XLClearOptions.Contents);
@@ -500,9 +497,9 @@ public sealed class ExcelExportService
         return match.Success && int.TryParse(match.Groups[1].Value, out var week) ? week : null;
     }
 
-    private void EnsureWorkbookIsAvailable()
+    private static void EnsureWorkbookIsAvailable(string workbookPath)
     {
-        try { using var _ = new FileStream(_workbookPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None); }
+        try { using var _ = new FileStream(workbookPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None); }
         catch (IOException) { throw new InvalidOperationException("Excel dosyası açık. Dosyayı Excel'de kapatıp tekrar deneyin."); }
     }
 
@@ -510,6 +507,26 @@ public sealed class ExcelExportService
     {
         if (string.IsNullOrWhiteSpace(configuredPath)) throw new InvalidOperationException("Excel dosya yolu ayarlanmamış.");
         return Path.GetFullPath(Path.IsPathRooted(configuredPath) ? configuredPath : Path.Combine(contentRoot, configuredPath));
+    }
+
+    private string WorkbookPathForYear(int year)=>_workbookPathPattern.Contains("{year}",StringComparison.OrdinalIgnoreCase)
+        ?_workbookPathPattern.Replace("{year}",year.ToString(CultureInfo.InvariantCulture),StringComparison.OrdinalIgnoreCase)
+        :_workbookPathPattern;
+
+    private void EnsureYearWorkbook(string workbookPath)
+    {
+        if(File.Exists(workbookPath))return;
+        if(!File.Exists(_templateWorkbookPath))throw new FileNotFoundException("Excel şablon dosyası bulunamadı.",_templateWorkbookPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(workbookPath)!);
+        using var source=new XLWorkbook(_templateWorkbookPath);
+        if(!source.Worksheets.TryGetWorksheet("DATA",out var dataSheet))
+            throw new InvalidOperationException("Excel şablonunda DATA sayfası bulunamadı.");
+        if(!source.Worksheets.TryGetWorksheet(_templateSheet,out var templateSheet))
+            throw new InvalidOperationException($"Excel şablon sayfası bulunamadı: {_templateSheet}");
+        using var target=new XLWorkbook();
+        dataSheet.CopyTo(target,"DATA");
+        templateSheet.CopyTo(target,"ŞABLON");
+        target.SaveAs(workbookPath);
     }
 
     private async Task EnsureSchemaAsync(CancellationToken cancellationToken)
@@ -538,7 +555,7 @@ public sealed class ExcelExportService
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private async Task<ExportData> LoadAsync(DateTime from, DateTime to, CancellationToken cancellationToken)
+    private async Task<ExportData> LoadAsync(DateTime from, DateTime to,string workbookPath, CancellationToken cancellationToken)
     {
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
@@ -549,15 +566,15 @@ public sealed class ExcelExportService
         data.Kavurma.AddRange(await ReadKavurmaAsync(connection, from, end, cancellationToken));
         data.Paketleme.AddRange(await ReadPaketlemeAsync(connection, from, end, cancellationToken));
         data.Dolum.AddRange(await ReadDolumAsync(connection, from, end, cancellationToken));
-        data.Kepek.AddRange(await ReadKepekAsync(connection, from, end, cancellationToken));
-        await ReadPendingChangesAsync(connection, data, cancellationToken);
+        data.Kepek.AddRange(await ReadKavurmaKepekAsync(connection, from, end, cancellationToken));
+        await ReadPendingChangesAsync(connection, data,workbookPath,cancellationToken);
         return data;
     }
 
     private static async Task<List<IslamaExportRow>> ReadIslamaAsync(SqlConnection connection, DateTime from, DateTime end, CancellationToken ct)
     {
         const string sql = """
-            SELECT I.IslamaSoymaKaydiId,I.BarkodSeri,I.HamSusamGelisTarihi,I.CopKg,I.PartiNo,I.NobetTarihi,
+            SELECT I.IslamaSoymaKaydiId,I.BarkodSeri,I.HamSusamGelisTarihi,I.CopKg,I.PartiNo,I.NobetTarihi,I.HavuzNo,
                    I.IslamaBaslangici,I.IslamaBitisi,I.SoymaBaslangici,I.SoymaBitisi,I.EkranTonajiKg,I.CekilenTonajKg,
                    COALESCE(NULLIF(CONCAT(I.Silo1,' ',I.Silo2),' '),S.Kod),M.Ad,U.Ad,I.Aciklama
             FROM uretim.IslamaSoymaKaydi I
@@ -570,7 +587,7 @@ public sealed class ExcelExportService
             """;
         var list = new List<IslamaExportRow>();
         await using var command = DateCommand(sql, connection, from, end); await using var r = await command.ExecuteReaderAsync(ct);
-        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),S(r,1),D<DateTime>(r,2),D<decimal>(r,3),r.GetString(4),D<DateTime>(r,5),D<DateTime>(r,6),D<DateTime>(r,7),r.GetDateTime(8),r.GetDateTime(9),D<decimal>(r,10),r.GetDecimal(11),S(r,12),r.GetString(13),r.GetString(14),S(r,15)));
+        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),S(r,1),D<DateTime>(r,2),D<decimal>(r,3),r.GetString(4),D<DateTime>(r,5),S(r,6),D<DateTime>(r,7),D<DateTime>(r,8),r.GetDateTime(9),r.GetDateTime(10),D<decimal>(r,11),r.GetDecimal(12),S(r,13),r.GetString(14),r.GetString(15),S(r,16)));
         return list;
     }
 
@@ -627,30 +644,34 @@ public sealed class ExcelExportService
         return list;
     }
 
-    private static async Task<List<KepekExportRow>> ReadKepekAsync(SqlConnection connection, DateTime from, DateTime end, CancellationToken ct)
+    private static async Task<List<KepekExportRow>> ReadKavurmaKepekAsync(SqlConnection connection, DateTime from, DateTime end, CancellationToken ct)
     {
         const string sql = """
-            SELECT K.KepekKaydiId,COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani)),K.PaketlemeMiktariKg,K.UrunCinsi,K.PersonelSayisi,K.Aciklama
-            FROM uretim.KepekKaydi K
-            WHERE K.KaynakSayfa IS NULL AND COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani))>=@From AND COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani))<@End
-              AND (NOT EXISTS(SELECT 1 FROM uretim.ExcelAktarimDetayi X WHERE X.TabloAdi='Kepek' AND X.KayitId=K.KepekKaydiId)
-                   OR EXISTS(SELECT 1 FROM uretim.ExcelAktarimDetayi X WHERE X.TabloAdi='Kepek' AND X.KayitId=K.KepekKaydiId AND X.BekleyenIslem='Guncelle'))
-            ORDER BY COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani)),K.KepekKaydiId;
+            SELECT K.KavurmaKaydiId,COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani)),K.KepekKg,U.Ad,P.AdSoyad
+            FROM uretim.KavurmaKaydi K
+            LEFT JOIN tanim.Urun U ON U.UrunId=K.UrunId
+            LEFT JOIN tanim.Personel P ON P.PersonelId=K.PersonelId
+            WHERE K.KaynakSayfa IS NULL AND COALESCE(K.KepekKg,0)>0
+              AND COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani))>=@From AND COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani))<@End
+              AND (NOT EXISTS(SELECT 1 FROM uretim.ExcelAktarimDetayi X WHERE X.TabloAdi='KavurmaKepek' AND X.KayitId=K.KavurmaKaydiId)
+                   OR EXISTS(SELECT 1 FROM uretim.ExcelAktarimDetayi X WHERE X.TabloAdi='KavurmaKepek' AND X.KayitId=K.KavurmaKaydiId AND X.BekleyenIslem='Guncelle'))
+            ORDER BY COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani)),K.KavurmaKaydiId;
             """;
         var list = new List<KepekExportRow>();
         await using var command = DateCommand(sql, connection, from, end); await using var r = await command.ExecuteReaderAsync(ct);
-        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),r.GetDateTime(1),r.GetDecimal(2),S(r,3),D<int>(r,4),S(r,5)));
+        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),r.GetDateTime(1),r.GetDecimal(2),S(r,3),S(r,4),null));
         return list;
     }
 
-    private static async Task ReadPendingChangesAsync(SqlConnection connection, ExportData data, CancellationToken ct)
+    private static async Task ReadPendingChangesAsync(SqlConnection connection, ExportData data,string workbookPath,CancellationToken ct)
     {
         const string sql = """
             SELECT TabloAdi,KayitId,SayfaAdi,SatirNo,BekleyenIslem
             FROM uretim.ExcelAktarimDetayi
-            WHERE BekleyenIslem IN ('Guncelle','Sil');
+            WHERE BekleyenIslem IN ('Guncelle','Sil') AND DosyaYolu=@Path;
             """;
         await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@Path",workbookPath);
         await using var reader = await command.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
@@ -660,7 +681,7 @@ public sealed class ExcelExportService
         }
     }
 
-    private async Task SaveMarksAsync(List<ExportMark> marks, List<ExportLocation> deletions, string backupPath, CancellationToken ct)
+    private async Task SaveMarksAsync(List<ExportMark> marks, List<ExportLocation> deletions, string workbookPath, CancellationToken ct)
     {
         await using var connection = new SqlConnection(_connectionString); await connection.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
@@ -678,7 +699,7 @@ public sealed class ExcelExportService
             {
                 await using var command = new SqlCommand(detailSql, connection, (SqlTransaction)transaction);
                 command.Parameters.AddWithValue("@Table", mark.Table); command.Parameters.AddWithValue("@Id", mark.Id);
-                command.Parameters.AddWithValue("@Path", _workbookPath); command.Parameters.AddWithValue("@Sheet", mark.Sheet);
+                command.Parameters.AddWithValue("@Path", workbookPath); command.Parameters.AddWithValue("@Sheet", mark.Sheet);
                 command.Parameters.AddWithValue("@Row", mark.Row); await command.ExecuteNonQueryAsync(ct);
             }
             const string deleteSql="UPDATE uretim.ExcelAktarimDetayi SET BekleyenIslem=NULL,AktarimZamani=SYSDATETIME() WHERE TabloAdi=@Table AND KayitId=@Id;";
@@ -690,20 +711,20 @@ public sealed class ExcelExportService
             }
             const string summarySql = "INSERT uretim.ExcelAktarimi(BaslamaZamani,BitisZamani,DosyaYolu,Durum,KayitSayisi,HataMesaji) VALUES(SYSDATETIME(),SYSDATETIME(),@Path,'Basarili',@Count,NULL);";
             await using (var command = new SqlCommand(summarySql, connection, (SqlTransaction)transaction))
-            { command.Parameters.AddWithValue("@Path", _workbookPath); command.Parameters.AddWithValue("@Count", marks.Count+deletions.Count); await command.ExecuteNonQueryAsync(ct); }
+            { command.Parameters.AddWithValue("@Path", workbookPath); command.Parameters.AddWithValue("@Count", marks.Count+deletions.Count); await command.ExecuteNonQueryAsync(ct); }
             await transaction.CommitAsync(ct);
         }
         catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
     }
 
-    private async Task LogFailureAsync(Exception exception, CancellationToken ct)
+    private async Task LogFailureAsync(Exception exception, string workbookPath, CancellationToken ct)
     {
         try
         {
             await using var connection = new SqlConnection(_connectionString); await connection.OpenAsync(ct);
             const string sql = "INSERT uretim.ExcelAktarimi(BaslamaZamani,BitisZamani,DosyaYolu,Durum,KayitSayisi,HataMesaji) VALUES(SYSDATETIME(),SYSDATETIME(),@Path,'Basarisiz',0,@Error);";
             await using var command = new SqlCommand(sql, connection);
-            command.Parameters.AddWithValue("@Path", _workbookPath);
+            command.Parameters.AddWithValue("@Path", workbookPath);
             command.Parameters.AddWithValue("@Error", exception.Message.Length > 2000 ? exception.Message[..2000] : exception.Message);
             await command.ExecuteNonQueryAsync(ct);
         }

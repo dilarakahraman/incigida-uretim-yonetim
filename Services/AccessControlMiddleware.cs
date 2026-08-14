@@ -22,7 +22,14 @@ public sealed class AccessControlMiddleware(RequestDelegate next)
         if (context.IsPersonnel())
         {
             var taskPage = context.TaskPage();
+            var canUseTankTransfer = context.TaskNumber() == 6 &&
+                path.Equals("/TankTransfer", StringComparison.OrdinalIgnoreCase);
             if (!string.IsNullOrWhiteSpace(taskPage) && path.Equals(taskPage, StringComparison.OrdinalIgnoreCase))
+            {
+                await next(context);
+                return;
+            }
+            if (canUseTankTransfer)
             {
                 await next(context);
                 return;
