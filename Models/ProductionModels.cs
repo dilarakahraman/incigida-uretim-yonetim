@@ -73,7 +73,46 @@ public sealed class RecordFilter
 
 public sealed record IslamaListItem(
     long Id, string PartiNo, DateTime SoymaBitisi, int SoymaSuresiDakika,
-    decimal CekilenTonajKg, decimal? CopKg, string Mensei, string Urun, string? Silo);
+    decimal CekilenTonajKg, decimal? CopKg, string Mensei, string Urun, string? Silo,
+    string? HavuzNo, string? Hazirlayan, string? IslamaPersoneli, string? SoymaPersoneli);
+
+public sealed record IslamaWorkflowItem(
+    long Id, string PartiNo, byte Asama, DateTime NobetTarihi, DateTime? HamSusamGelisTarihi, DateTime IslamaTarihi,
+    string HavuzNo, int? MenseiId, string? Mensei, DateTime? IslamaBaslangici, DateTime? IslamaBitisi,
+    string? Hazirlayan, string? IslamaPersoneli, DateTime GuncellemeZamani);
+
+public sealed class IslamaHazirlikInput
+{
+    [Required, DataType(DataType.Date)] public DateTime? NobetTarihi { get; set; } = DateTime.Today;
+    [Required, DataType(DataType.Date)] public DateTime? HamSusamGelisTarihi { get; set; } = DateTime.Today;
+    [Required, DataType(DataType.Date)] public DateTime? IslamaTarihi { get; set; } = DateTime.Today;
+    [Required, StringLength(30)] public string HavuzNo { get; set; } = "";
+    [Required, Range(1,int.MaxValue)] public int? MenseiId { get; set; }
+}
+
+public sealed class IslamaSurecInput
+{
+    [Required] public DateTime? IslamaBaslangici { get; set; }
+    [Required] public DateTime? IslamaBitisi { get; set; }
+}
+
+public sealed class SoymaTamamlamaInput
+{
+    [StringLength(50)] public string? BarkodSeri { get; set; }
+    [DataType(DataType.Date)] public DateTime? HamSusamGelisTarihi { get; set; }
+    [Required, Range(0, 999999)] public decimal? CopKg { get; set; }
+    [Required] public DateTime? SoymaBaslangici { get; set; }
+    [Required] public DateTime? SoymaBitisi { get; set; }
+    [Required, Range(0, 999999999)] public decimal? EkranTonajiKg { get; set; }
+    [Required, Range(0.001, 999999999)] public decimal? CekilenTonajKg { get; set; }
+    [Required, StringLength(2), RegularExpression("(?i)^[ABC][1-4]$")]
+    public string? Silo1 { get; set; }
+    [Required, StringLength(2), RegularExpression("(?i)^[ABC][1-4]$")]
+    public string? Silo2 { get; set; }
+    [Range(1, int.MaxValue)] public int? MenseiId { get; set; }
+    [Range(1, int.MaxValue)] public int UrunId { get; set; }
+    [StringLength(500)] public string? Aciklama { get; set; }
+}
 
 public sealed record KavurmaListItem(
     long Id, DateTime? Tarih, string? PartiNo, decimal NetTonajKg,
@@ -95,6 +134,10 @@ public sealed record DegirmenNobetListItem(
     long Id, DateTime Tarih, string Nobet, string Personel, string? Aciklama,
     int SatirNo, string FirinNoSergen, string Mensei, string PureMiktari,
     decimal InceltilenMiktarKg, string TransferEdilenTank);
+
+public sealed record TankTransferListItem(
+    long Id, DateTime TransferZamani, string KaynakTank, string HedefTank,
+    decimal MiktarKg, string Mensei, string Personel, string? Aciklama);
 
 public sealed record KurutmaNobetListItem(
     long Id, DateTime Tarih, string Nobet, string Personel, string? Aciklama,
@@ -208,6 +251,17 @@ public sealed class DegirmenSatirInput
     [Required,StringLength(200)] public string PureMiktari{get;set;}="";
     [Range(0.001,999999999)] public decimal InceltilenMiktarKg{get;set;}
     [Required,StringLength(100)] public string TransferEdilenTank{get;set;}="";
+}
+
+public sealed class TankTransferInput
+{
+    [Required] public DateTime? TransferZamani{get;set;}=DateTime.Now;
+    [Required,StringLength(100)] public string KaynakTank{get;set;}="";
+    [Required,StringLength(100)] public string HedefTank{get;set;}="";
+    [Required,Range(0.001,999999999)] public decimal? MiktarKg{get;set;}
+    [Required,Range(1,int.MaxValue)] public int? MenseiId{get;set;}
+    public int? PersonelId{get;set;}
+    [StringLength(500)] public string? Aciklama{get;set;}
 }
 
 public sealed class KurutmaNobetInput

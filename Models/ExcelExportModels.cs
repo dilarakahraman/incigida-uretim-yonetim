@@ -4,7 +4,7 @@ public sealed record ExcelExportResult(int RecordCount, int SheetCount, string W
 
 public sealed record IslamaExportRow(
     long Id, string? BarkodSeri, DateTime? HamSusamGelisTarihi, decimal? CopKg, string PartiNo,
-    DateTime? NobetTarihi, DateTime? IslamaBaslangici, DateTime? IslamaBitisi,
+    DateTime? NobetTarihi, string? HavuzNo, DateTime? IslamaBaslangici, DateTime? IslamaBitisi,
     DateTime SoymaBaslangici, DateTime SoymaBitisi, decimal? EkranTonajiKg, decimal CekilenTonajKg,
     string? Silo, string Mensei, string Urun, string? Aciklama);
 
@@ -25,4 +25,4 @@ public sealed record DolumExportRow(
 
 public sealed record KepekExportRow(
     long Id, DateTime Tarih, decimal PaketlemeMiktariKg, string? UrunCinsi,
-    int? PersonelSayisi, string? Aciklama);
+    string? Personel, int? PersonelSayisi);
