@@ -3,6 +3,13 @@
 @{ViewData["Title"]="Değirmen";}
 @if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
 
+<section class="data-section">
+    <div class="section-head">
+        <div><h2>Değirmen işlemleri</h2><p>Bu sayfada yalnızca değirmen nöbeti ve üretim bilgileri kaydedilir.</p></div>
+        <a class="btn-primary-app" asp-page="/TankTransfer">Tank transferi yap</a>
+    </div>
+</section>
+
 <section class="data-section shift-history">
     <div class="section-head"><div><h2>Değirmen kayıtları</h2><p>Son 100 değirmen satırı ve ortak açıklaması</p></div><span class="count-badge">@Model.Records.Count satır</span></div>
     <div class="table-wrap"><table class="data-table">

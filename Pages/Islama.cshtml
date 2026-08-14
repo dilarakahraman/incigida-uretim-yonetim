@@ -1,20 +1,134 @@
 @page
 @model IslamaModel
-@{ViewData["Title"]="Islama · Soyma";}
+@{
+    ViewData["Title"]="Islama · Soyma";
+    var bekleyenIslama=Model.Workflow.Where(x=>x.Asama==1).ToList();
+    var bekleyenSoyma=Model.Workflow.Where(x=>x.Asama==2).ToList();
+    var stage=Model.SelectedWork?.Asama==1?"islama":Model.SelectedWork?.Asama==2?"soyma":Model.Stage?.ToLowerInvariant();
+    if(stage is not ("nobet" or "islama" or "soyma"))stage="nobet";
+}
 @if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
-<div class="@(Model.IsAdmin?"workspace-grid":"personnel-entry")">
-<section class="data-section"><div class="section-head"><div><h2>Kayıtlar</h2><p>Son 100 ıslama-soyma işlemi</p></div><span class="count-badge">@Model.Records.Count kayıt</span></div><partial name="Shared/_RecordFilter" model="Model.Filter"/><div class="table-wrap"><table class="data-table"><thead><tr><th>Parti</th><th>Tarih</th><th>Menşei · Ürün</th><th>Silo</th><th class="num">Çekilen</th><th class="num">Süre</th><th></th></tr></thead><tbody>
-@foreach(var x in Model.Records){<tr><td><strong>@x.PartiNo</strong></td><td>@x.SoymaBitisi.ToString("dd.MM.yyyy HH:mm")</td><td>@x.Mensei<br/><small>@x.Urun</small></td><td>@(x.Silo??"—")</td><td class="num"><strong>@x.CekilenTonajKg.ToString("0.###") kg</strong></td><td class="num">@x.SoymaSuresiDakika dk</td><td><div class="table-actions"><a class="action-edit" asp-route-editId="@x.Id">Düzenle</a>@if(Model.IsAdmin||x.Id==Model.Records.FirstOrDefault()?.Id){<form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form>}</div></td></tr>}
-@if(Model.Records.Count==0){<tr><td colspan="7" class="empty">Henüz görüntülenecek kayıt yok.</td></tr>}
-</tbody></table></div></section>
-<aside class="entry-panel"><div class="panel-head"><h2>@(Model.EditId is>0?"Kaydı düzenle":Model.IsAdmin?"Yeni kayıt":"Görev kaydı")</h2><span>@(Model.IsAdmin?"Islama · Soyma":Model.PersonnelName)</span></div><form method="post" class="entry-form"><input asp-for="EditId" type="hidden"/><div asp-validation-summary="All" class="validation"></div>
-@if(Model.EditId is>0){<div class="edit-banner"><span>#@Model.EditId numaralı kayıt düzenleniyor</span><a asp-page="/Islama">İptal</a></div>}
-<div class="field-row"><label>Parti no (otomatik)<input asp-for="Input.PartiNo" readonly data-persisted="@(Model.EditId is > 0 ? "true" : "false")"/></label><label>Barkod seri<input asp-for="Input.BarkodSeri"/></label></div>
-<div class="field-row"><label>Ham susam geliş<input asp-for="Input.HamSusamGelisTarihi" type="date"/></label><label>Nöbet tarihi<input asp-for="Input.NobetTarihi" type="date"/></label></div>
-<div class="field-row"><label>Islama başlangıcı<input asp-for="Input.IslamaBaslangici" type="datetime-local"/></label><label>Islama bitişi<input asp-for="Input.IslamaBitisi" type="datetime-local"/></label></div>
-<div class="field-row"><label>Soyma başlangıcı<input asp-for="Input.SoymaBaslangici" type="datetime-local"/></label><label>Soyma bitişi<input asp-for="Input.SoymaBitisi" type="datetime-local"/></label></div>
-<div class="field-row"><label>Menşei<select asp-for="Input.MenseiId"><option value="">Seçin</option>@foreach(var x in Model.Menseiler){<option value="@x.Id">@x.Name</option>}</select></label><label>Ürün<select asp-for="Input.UrunId"><option value="">Seçin</option>@foreach(var x in Model.Urunler){<option value="@x.Id">@x.Name</option>}</select></label></div>
-<div class="field-row"><label>Silo 1 <span>A1-A4, B1-B4 veya C1-C4</span><input asp-for="Input.Silo1" maxlength="2" placeholder="Örn. A1" pattern="[A-Ca-c][1-4]" title="Uygun formatta girin: A1-A4, B1-B4 veya C1-C4."/><span asp-validation-for="Input.Silo1" class="validation"></span></label><label>Silo 2 <span>A1-A4, B1-B4 veya C1-C4</span><input asp-for="Input.Silo2" maxlength="2" placeholder="Örn. B1" pattern="[A-Ca-c][1-4]" title="Uygun formatta girin: A1-A4, B1-B4 veya C1-C4."/><span asp-validation-for="Input.Silo2" class="validation"></span></label></div>
-@if(Model.IsAdmin){<label>Personel<select asp-for="Input.PersonelId"><option value="">Seçin</option>@foreach(var x in Model.Personeller){<option value="@x.Id">#@x.Id · @x.Name</option>}</select></label>}
-<div class="field-row"><label>Çöp <span>kg</span><input asp-for="Input.CopKg" type="number" step="0.001"/></label><label>Ekran tonajı <span>kg</span><input asp-for="Input.EkranTonajiKg" type="number" step="0.001"/></label></div>
-<label>Çekilen tonaj <span>kg · elle girin</span><input asp-for="Input.CekilenTonajKg" type="text" inputmode="decimal" placeholder="Örn. 56200" autocomplete="off"/></label><label>Açıklama<textarea asp-for="Input.Aciklama" rows="2"></textarea></label><button class="btn-primary-app full">@(Model.EditId is>0?"Değişiklikleri kaydet":"Kaydı ekle")</button></form></aside></div>
+
+<nav class="islama-stage-picker" aria-label="Islama ve soyma aşamaları">
+    <a class="@(stage=="nobet"?"active":"")" asp-page="/Islama" asp-route-stage="nobet">
+        <b>1</b><span><strong>Nöbet</strong><small>Yeni parti ve havuz kaydı</small></span>
+    </a>
+    <a class="@(stage=="islama"?"active":"")" asp-page="/Islama" asp-route-stage="islama">
+        <b>2</b><span><strong>Islama</strong><small>@bekleyenIslama.Count bekleyen kayıt</small></span>
+    </a>
+    <a class="@(stage=="soyma"?"active":"")" asp-page="/Islama" asp-route-stage="soyma">
+        <b>3</b><span><strong>Soyma</strong><small>@bekleyenSoyma.Count bekleyen kayıt</small></span>
+    </a>
+</nav>
+
+<section class="data-section completed-records completed-records-top">
+    <div class="section-head"><div><h2>Bugün tamamlanan kayıtlar</h2><p>Yalnızca bugün sisteme eklenen ıslama-soyma işlemleri</p></div><span class="count-badge">@Model.Records.Count kayıt</span></div>
+    @if(Model.IsAdmin){<partial name="Shared/_RecordFilter" model="Model.Filter"/>}
+    <div class="table-wrap completed-table-wrap"><table class="data-table"><thead><tr><th>Parti</th><th>Tarih</th><th>Havuz</th><th>Menşei · Ürün</th><th>İşi yapanlar</th><th>Silo</th><th class="num">Çekilen</th><th class="num">Süre</th>@if(Model.IsAdmin){<th></th>}</tr></thead><tbody>
+    @foreach(var x in Model.Records){<tr><td><strong>@x.PartiNo</strong></td><td>@x.SoymaBitisi.ToString("dd.MM.yyyy HH:mm")</td><td>@(x.HavuzNo??"—")</td><td>@x.Mensei<br/><small>@x.Urun</small></td><td><small>Hazırlık:</small> @(x.Hazirlayan??"—")<br/><small>Islama:</small> @(x.IslamaPersoneli??"—")<br/><small>Soyma:</small> @(x.SoymaPersoneli??"—")</td><td>@(x.Silo??"—")</td><td class="num"><strong>@x.CekilenTonajKg.ToString("0.###") kg</strong></td><td class="num">@x.SoymaSuresiDakika dk</td>@if(Model.IsAdmin){<td><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></td>}</tr>}
+    @if(Model.Records.Count==0){<tr><td colspan="9" class="empty">Henüz tamamlanan kayıt bulunmuyor.</td></tr>}
+    </tbody></table></div>
+</section>
+
+<div class="workspace-grid">
+<section class="workflow-queues">
+    @if(stage=="nobet")
+    {
+    <div class="data-section stage-description">
+        <div class="section-head"><div><h2>Nöbet aşaması</h2><p>Yeni partinin ilk kaydı burada oluşturulur</p></div><span class="count-badge">1. aşama</span></div>
+        <div class="stage-description-body"><strong>Girilecek bilgiler</strong><span>Parti numarası otomatik oluşturulur.</span><span>Nöbet tarihi, ıslama tarihi ve havuz numarası kaydedilir.</span><span>Kayıt tamamlanınca Bekleyen Islama kuyruğuna geçer.</span></div>
+    </div>
+    }
+    @if(stage=="islama")
+    {
+    <div class="data-section queue-section">
+        <div class="section-head"><div><h2>Bekleyen Islama</h2><p>Nöbet kaydı tamamlanmış, ıslama bilgisi bekleyen partiler</p></div><span class="count-badge">@bekleyenIslama.Count kayıt</span></div>
+        <div class="workflow-cards">
+        @foreach(var x in bekleyenIslama)
+        {
+            <article class="workflow-card stage-1">
+                <header><div><strong>@x.PartiNo</strong><small>Havuz @x.HavuzNo</small></div><span>Islama bekliyor</span></header>
+                <dl><div><dt>Nöbet</dt><dd>@x.NobetTarihi.ToString("dd.MM.yyyy")</dd></div><div><dt>Islama tarihi</dt><dd>@x.IslamaTarihi.ToString("dd.MM.yyyy")</dd></div></dl>
+                <a class="btn-primary-app" asp-route-workId="@x.Id">Islama bilgisi gir</a>
+            </article>
+        }
+        @if(bekleyenIslama.Count==0){<div class="empty-state">Islama bekleyen parti bulunmuyor.</div>}
+        </div>
+    </div>
+    }
+    @if(stage=="soyma")
+    {
+    <div class="data-section queue-section">
+        <div class="section-head"><div><h2>Bekleyen Soyma</h2><p>Islama tamamlanmış, soyma bilgisi bekleyen partiler</p></div><span class="count-badge">@bekleyenSoyma.Count kayıt</span></div>
+        <div class="workflow-cards">
+        @foreach(var x in bekleyenSoyma)
+        {
+            <article class="workflow-card stage-2">
+                <header><div><strong>@x.PartiNo</strong><small>Havuz @x.HavuzNo</small></div><span>Soyma bekliyor</span></header>
+                <dl><div><dt>Nöbet</dt><dd>@x.NobetTarihi.ToString("dd.MM.yyyy")</dd></div><div><dt>Islama</dt><dd>@x.IslamaBaslangici?.ToString("dd.MM HH:mm") – @x.IslamaBitisi?.ToString("dd.MM HH:mm")</dd></div></dl>
+                <a class="btn-primary-app" asp-route-workId="@x.Id">Soyma bilgisi gir</a>
+            </article>
+        }
+        @if(bekleyenSoyma.Count==0){<div class="empty-state">Soyma bekleyen parti bulunmuyor.</div>}
+        </div>
+    </div>
+    }
+</section>
+
+<aside class="entry-panel">
+@if(stage=="nobet")
+{
+    <div class="panel-head"><div><h2>1 · Nöbet kaydı</h2><span>@(Model.PersonnelName??"Yeni iş akışı")</span></div></div>
+    <form method="post" asp-page-handler="Hazirlik" class="entry-form">
+        <div asp-validation-summary="All" class="validation"></div>
+        <label>Parti numarası<span>Kaydedildiğinde otomatik oluşturulur</span><input value="Otomatik" disabled/></label>
+        <div class="field-row">
+            <label>Nöbet tarihi<input asp-for="Hazirlik.NobetTarihi" type="date"/></label>
+            <label>Ham susam geliş tarihi<input asp-for="Hazirlik.HamSusamGelisTarihi" type="date"/></label>
+        </div>
+        <label>Islama tarihi<input asp-for="Hazirlik.IslamaTarihi" type="date"/></label>
+        <label>Ürün menşei<select asp-for="Hazirlik.MenseiId"><option value="">Seçin</option>@foreach(var x in Model.Menseiler){<option value="@x.Id">@x.Name</option>}</select></label>
+        <label>Havuz numarası<input asp-for="Hazirlik.HavuzNo" placeholder="Örn. 3" autocomplete="off"/></label>
+        <button class="btn-primary-app full">Nöbet kaydını oluştur ve ıslamaya gönder</button>
+    </form>
+}
+else if(stage=="islama" && Model.SelectedWork?.Asama==1)
+{
+    <div class="panel-head"><div><h2>2 · Islama bilgileri</h2><span>@Model.SelectedWork.PartiNo</span></div></div>
+    <form method="post" asp-page-handler="Islama" class="entry-form">
+        <input type="hidden" name="workId" value="@Model.SelectedWork.Id"/>
+        <div asp-validation-summary="All" class="validation"></div>
+        <partial name="Shared/_IslamaWorkflowSummary" model="Model.SelectedWork"/>
+        <div class="field-row">
+            <label>Islama başlangıcı<input asp-for="Islama.IslamaBaslangici" type="datetime-local"/></label>
+            <label>Islama bitişi<input asp-for="Islama.IslamaBitisi" type="datetime-local"/></label>
+        </div>
+        <div class="form-actions"><a class="btn-secondary-app" asp-page="/Islama">İptal</a><button class="btn-primary-app">Kaydet ve soymaya gönder</button></div>
+    </form>
+}
+else if(stage=="soyma" && Model.SelectedWork?.Asama==2)
+{
+    <div class="panel-head"><div><h2>3 · Soyma ve tonaj</h2><span>@Model.SelectedWork.PartiNo</span></div></div>
+    <form method="post" asp-page-handler="Soyma" class="entry-form">
+        <input type="hidden" name="workId" value="@Model.SelectedWork.Id"/>
+        <div asp-validation-summary="All" class="validation"></div>
+        <partial name="Shared/_IslamaWorkflowSummary" model="Model.SelectedWork"/>
+        <div class="field-row"><label>Soyma başlangıcı<input asp-for="Soyma.SoymaBaslangici" type="datetime-local"/></label><label>Soyma bitişi<input asp-for="Soyma.SoymaBitisi" type="datetime-local"/></label></div>
+        <label>Barkod seri <span>İsteğe bağlı</span><input asp-for="Soyma.BarkodSeri"/></label>
+        @if(!Model.SelectedWork.HamSusamGelisTarihi.HasValue){<label>Ham susam geliş tarihi <span>Eski bekleyen kayıt için tamamlayın</span><input asp-for="Soyma.HamSusamGelisTarihi" type="date"/></label>}
+        @if(!Model.SelectedWork.MenseiId.HasValue){<label>Ürün menşei <span>Eski bekleyen kayıt için tamamlayın</span><select asp-for="Soyma.MenseiId"><option value="">Seçin</option>@foreach(var x in Model.Menseiler){<option value="@x.Id">@x.Name</option>}</select></label>}
+        <label>Ürün cinsi<select asp-for="Soyma.UrunId"><option value="">Seçin</option>@foreach(var x in Model.Urunler){<option value="@x.Id">@x.Name</option>}</select></label>
+        <div class="field-row"><label>Silo 1<input asp-for="Soyma.Silo1" maxlength="2" placeholder="A1"/></label><label>Silo 2<input asp-for="Soyma.Silo2" maxlength="2" placeholder="B1"/></label></div>
+        <div class="field-row"><label>Çöp <span>kg</span><input asp-for="Soyma.CopKg" type="number" step="0.001"/></label><label>Ekran tonajı <span>kg</span><input asp-for="Soyma.EkranTonajiKg" type="number" step="0.001"/></label></div>
+        <label>Çekilen tonaj <span>kg</span><input asp-for="Soyma.CekilenTonajKg" type="number" step="0.001"/></label>
+        <label>Açıklama<textarea asp-for="Soyma.Aciklama" rows="2"></textarea></label>
+        <div class="form-actions"><a class="btn-secondary-app" asp-page="/Islama">İptal</a><button class="btn-primary-app">Soymayı tamamla</button></div>
+    </form>
+}
+else
+{
+    <div class="panel-head"><div><h2>@(stage=="islama"?"Islama kaydı seçin":"Soyma kaydı seçin")</h2><span>Bekleyen partiler</span></div></div>
+    <div class="stage-empty-panel">Soldaki bekleyen kayıtlardan işlem yapacağınız partiyi seçin.</div>
+}
+</aside>
+</div>

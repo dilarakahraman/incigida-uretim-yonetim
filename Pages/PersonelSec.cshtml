@@ -1,4 +1,56 @@
 @page
 @model PersonelSecModel
 @{Layout=null;}
-<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Personel Seçimi · Üretim Yönetim Sistemi</title><link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/></head><body class="access-body"><main class="access-card personnel-select-card"><a class="access-back" asp-page="/Giris">← Panel seçimine dön</a><div class="access-heading"><span>Personel paneli</span><h1>Kim olduğunuzu seçin</h1><p>Çalışacağınız görevi seçerek kayıt ekranına geçin.</p></div>@if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}<div class="personnel-grid">@foreach(var person in Model.Personnel){<div class="person-card"><span class="person-id">#@person.PersonelId</span><strong>@person.Name</strong>@if(person.Tasks.Count==0){<small>Görev atanmamış</small>}<div class="person-task-buttons">@foreach(var task in person.Tasks){<form method="post"><input type="hidden" name="personnelId" value="@person.PersonelId"/><input type="hidden" name="taskNumber" value="@task.TaskNumber"/><button type="submit">@task.TaskName →</button></form>}</div></div>}</div>@if(Model.Personnel.Count==0){<div class="empty-state">Aktif personel bulunamadı.</div>}</main></body></html>
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Görev ve Personel Seçimi · Üretim Yönetim Sistemi</title>
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true"/></head>
+<body class="access-body"><main class="access-card personnel-select-card">
+<a class="access-back" asp-page="/Giris">← Panel seçimine dön</a>
+<div class="access-heading"><span>Personel paneli</span>
+<h1>@(Model.SelectedTask is null?"Önce görevi seçin":Model.SelectedTask.TaskNumber==1&&Model.SelectedStageName is null?"Islama–Soyma aşamasını seçin":$"{(Model.SelectedStageName??Model.SelectedTask.TaskName)} personelini seçin")</h1>
+<p>@(Model.SelectedTask is null?"Yapılacak ana işi seçin.":Model.SelectedTask.TaskNumber==1&&Model.SelectedStageName is null?"Personel seçmeden önce yapılacak alt aşamayı seçin.":"Yalnızca yönetim panelinde bu göreve yetki verilmiş personeller gösterilir.")</p></div>
+@if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
+
+@if(Model.SelectedTask is null)
+{
+    <div class="task-first-grid">
+    @foreach(var task in Model.Tasks)
+    {
+        <a asp-route-taskNumber="@task.TaskNumber">
+            <b>@task.TaskNumber</b><strong>@task.TaskName</strong>
+            <small>@Model.Personnel.Count(x=>x.Tasks.Any(t=>t.TaskNumber==task.TaskNumber)) atanmış personel</small>
+            <span>Personel seç →</span>
+        </a>
+    }
+    </div>
+}
+else if(Model.SelectedTask.TaskNumber==1 && Model.SelectedStageName is null)
+{
+    <a class="access-back task-back" asp-page="/PersonelSec">← Ana görevlere dön</a>
+    <div class="subtask-first-grid">
+        <a asp-route-taskNumber="1" asp-route-stage="nobet"><b>1</b><strong>Nöbet</strong><small>Parti, nöbet tarihi, ıslama tarihi ve havuz</small><span>Personel seç →</span></a>
+        <a asp-route-taskNumber="1" asp-route-stage="islama"><b>2</b><strong>Islama</strong><small>Bekleyen partinin ıslama başlangıç ve bitişi</small><span>Personel seç →</span></a>
+        <a asp-route-taskNumber="1" asp-route-stage="soyma"><b>3</b><strong>Soyma</strong><small>Soyma bilgileri ve tonajların tamamlanması</small><span>Personel seç →</span></a>
+    </div>
+}
+else
+{
+    <a class="access-back task-back" asp-page="/PersonelSec" asp-route-taskNumber="@(Model.SelectedTask.TaskNumber==1?1:null)">← @(Model.SelectedTask.TaskNumber==1?"Aşamalara":"Görevlere") dön</a>
+    <div class="personnel-grid">
+    @foreach(var person in Model.AssignedPersonnel)
+    {
+        <form method="post">
+            <input type="hidden" name="personnelId" value="@person.PersonelId"/>
+            <input type="hidden" name="taskNumber" value="@Model.SelectedTask.TaskNumber"/>
+            <input type="hidden" name="stage" value="@Model.Stage"/>
+            <button class="person-card" type="submit">
+                <span class="person-id">#@person.PersonelId</span><strong>@person.Name</strong>
+                <small>@(Model.SelectedStageName??Model.SelectedTask.TaskName)</small><b>Bu personelle devam et →</b>
+            </button>
+        </form>
+    }
+    </div>
+    @if(!Model.AssignedPersonnel.Any()){<div class="empty-state">Bu göreve atanmış aktif personel bulunmuyor. Yönetim panelinden görevlendirme yapın.</div>}
+}
+</main></body></html>

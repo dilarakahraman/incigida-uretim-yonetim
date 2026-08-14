@@ -23,7 +23,7 @@
             <span class="person-id">#@person.PersonelId</span>
             <strong>@person.Name</strong>
             <div class="task-checks">
-            @foreach(var task in ProductionTasks.All)
+                    @foreach(var task in ProductionTasks.All.Where(x => new[]{1,2,3,4,6,7}.Contains(x.Key)))
             {
                 <label><input type="checkbox" name="taskNumbers" value="@task.Key" checked="@person.Tasks.Any(x=>x.TaskNumber==task.Key)"/>@task.Value.Name</label>
             }

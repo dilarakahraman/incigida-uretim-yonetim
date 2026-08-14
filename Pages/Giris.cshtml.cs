@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SusamUretim.Web.Data;
@@ -6,6 +7,7 @@ using SusamUretim.Web.Services;
 
 namespace SusamUretim.Web.Pages;
 
+[EnableRateLimiting("login")]
 public sealed class GirisModel(SusamRepository repository) : PageModel
 {
     [BindProperty,DataType(DataType.Password)] public string AdminPassword {get;set;}="";

@@ -1,0 +1,10 @@
+@model SusamUretim.Web.Models.IslamaWorkflowItem
+<div class="workflow-summary">
+    <strong>@Model.PartiNo</strong>
+    <span>Nöbet: @Model.NobetTarihi.ToString("dd.MM.yyyy")</span>
+    <span>Ham susam gelişi: @(Model.HamSusamGelisTarihi?.ToString("dd.MM.yyyy")??"—")</span>
+    <span>Ürün menşei: @(Model.Mensei??"—")</span>
+    <span>Islama tarihi: @Model.IslamaTarihi.ToString("dd.MM.yyyy")</span>
+    <span>Havuz: @Model.HavuzNo</span>
+    @if(Model.IslamaBaslangici.HasValue){<span>Islama: @Model.IslamaBaslangici.Value.ToString("dd.MM.yyyy HH:mm") – @Model.IslamaBitisi?.ToString("dd.MM.yyyy HH:mm")</span>}
+</div>

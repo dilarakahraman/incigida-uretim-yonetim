@@ -26,9 +26,16 @@ public sealed class IndexModel(SusamRepository repository) : PageModel
 
     public async Task OnGetAsync()
     {
-        Year ??= ISOWeek.GetYear(DateTime.Today);
+        var explicitPeriod=Year.HasValue||Week.HasValue;
+        var referenceDate=DateTime.Today;
+        if(!explicitPeriod)
+        {
+            try{referenceDate=await repository.GetLatestProductionDateAsync()??DateTime.Today;}
+            catch(Exception ex){ErrorMessage=ex.Message;}
+        }
+        Year ??= ISOWeek.GetYear(referenceDate);
         var maxWeek=ISOWeek.GetWeeksInYear(Year.Value);
-        Week=Week is >=1 && Week<=maxWeek?Week:ISOWeek.GetWeekOfYear(DateTime.Today);
+        Week=Week is >=1 && Week<=maxWeek?Week:ISOWeek.GetWeekOfYear(referenceDate);
         Week=Math.Min(Week.Value,maxWeek);
         From=ISOWeek.ToDateTime(Year.Value,Week.Value,DayOfWeek.Monday);
         To=From.AddDays(6);
@@ -36,14 +43,19 @@ public sealed class IndexModel(SusamRepository repository) : PageModel
         {
             var productsTask=repository.GetUrunlerAsync();
             var originsTask=repository.GetMenseilerAsync();
-            var statsTask=repository.GetDashboardAsync(From,To,ProductId,OriginId);
-            var processesTask=repository.GetProcessDashboardAsync(From,To,ProductId,OriginId);
-            await Task.WhenAll(productsTask,originsTask,statsTask,processesTask);
+            await Task.WhenAll(productsTask,originsTask);
             Products=productsTask.Result;
             OriginOptions=originsTask.Result;
+        }
+        catch(Exception ex) { ErrorMessage=ex.Message; }
+        try
+        {
+            var statsTask=repository.GetDashboardAsync(From,To,ProductId,OriginId);
+            var processesTask=repository.GetProcessDashboardAsync(From,To,ProductId,OriginId);
+            await Task.WhenAll(statsTask,processesTask);
             Stats=statsTask.Result;
             Processes=processesTask.Result;
         }
-        catch(Exception ex) { ErrorMessage=ex.Message; }
+        catch(Exception ex) { ErrorMessage=string.IsNullOrWhiteSpace(ErrorMessage)?ex.Message:$"{ErrorMessage} | {ex.Message}"; }
     }
 }

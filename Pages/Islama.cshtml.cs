@@ -8,52 +8,105 @@ namespace SusamUretim.Web.Pages;
 
 public sealed class IslamaModel(SusamRepository repository) : PageModel
 {
-    [BindProperty] public IslamaInput Input { get; set; } = new() { SoymaBaslangici=DateTime.Now, SoymaBitisi=DateTime.Now.AddHours(6) };
+    [BindProperty] public IslamaHazirlikInput Hazirlik { get; set; } = new();
+    [BindProperty] public IslamaSurecInput Islama { get; set; } = new();
+    [BindProperty] public SoymaTamamlamaInput Soyma { get; set; } = new();
     [BindProperty(SupportsGet=true)] public RecordFilter Filter { get; set; } = new();
+    [BindProperty(SupportsGet=true)] public long? WorkId { get; set; }
+    [BindProperty(SupportsGet=true)] public string? Stage { get; set; }
     [BindProperty(SupportsGet=true)] public long? EditId { get; set; }
     public bool IsAdmin => HttpContext.IsAdmin();
     public string? PersonnelName => HttpContext.PersonnelName();
+    public List<IslamaWorkflowItem> Workflow { get; private set; }=[];
+    public IslamaWorkflowItem? SelectedWork { get; private set; }
     public List<IslamaListItem> Records { get; private set; }=[];
     public List<LookupItem> Menseiler { get; private set; }=[];
     public List<LookupItem> Urunler { get; private set; }=[];
-    public List<LookupItem> Silolar { get; private set; }=[];
-    public List<LookupItem> Personeller { get; private set; }=[];
     public string? ErrorMessage { get; private set; }
 
     public async Task OnGetAsync()
     {
-        if(EditId is > 0){var x=await repository.GetIslamaInputAsync(EditId.Value,IsAdmin?null:HttpContext.PersonnelId());if(x is null)EditId=null;else Input=x;}
+        if(WorkId is > 0)SelectedWork=await repository.GetIslamaWorkflowItemAsync(WorkId.Value);
         await LoadAsync();
     }
 
-    public async Task<IActionResult> OnPostAsync()
+    public async Task<IActionResult> OnPostHazirlikAsync()
     {
-        Input.Silo1=Input.Silo1?.Trim().ToUpperInvariant();
-        Input.Silo2=Input.Silo2?.Trim().ToUpperInvariant();
-        if(EditId is not >0)
-        {
-            Input.PartiNo=await repository.GetNextBatchNumberAsync(Input.SoymaBaslangici);
-            ModelState.Remove("Input.PartiNo");
-        }
-        if(!IsAdmin)Input.PersonelId=HttpContext.PersonnelId();
-        if(!IsAdmin&&EditId is>0&&await repository.GetIslamaInputAsync(EditId.Value,HttpContext.PersonnelId()) is null)return Forbid();
-        if(Input.SoymaBitisi < Input.SoymaBaslangici) ModelState.AddModelError("Input.SoymaBitisi","Bitiş başlangıçtan önce olamaz.");
+        KeepOnly(nameof(Hazirlik));
         if(!ModelState.IsValid){await LoadAsync();return Page();}
         try
         {
-            if(EditId is > 0){await repository.UpdateIslamaAsync(EditId.Value,Input);await repository.MarkExcelUpdateAsync("Islama",EditId.Value);TempData["Success"]=$"Islama-soyma kaydı güncellendi. Parti: {Input.PartiNo}";}
-            else{await repository.InsertIslamaAsync(Input);TempData["Success"]=$"Kayıt eklendi. Parti numarası: {Input.PartiNo}";}
+            var parti=await repository.InsertIslamaHazirlikAsync(Hazirlik,HttpContext.PersonnelId());
+            TempData["Success"]=$"Nöbet kaydı oluşturuldu: {parti}. Islama bilgisi bekleniyor.";
             return RedirectToPage();
         }
         catch(Exception ex){ErrorMessage=ex.Message;await LoadAsync();return Page();}
     }
 
+    public async Task<IActionResult> OnPostIslamaAsync(long workId)
+    {
+        KeepOnly(nameof(Islama));
+        SelectedWork=await repository.GetIslamaWorkflowItemAsync(workId);
+        if(SelectedWork is null||SelectedWork.Asama!=1)return NotFound();
+        if(Islama.IslamaBitisi<Islama.IslamaBaslangici)
+            ModelState.AddModelError("Islama.IslamaBitisi","Islama bitişi başlangıçtan önce olamaz.");
+        if(!ModelState.IsValid){WorkId=workId;await LoadAsync();return Page();}
+        try
+        {
+            await repository.CompleteIslamaStageAsync(workId,Islama,HttpContext.PersonnelId());
+            TempData["Success"]=$"{SelectedWork.PartiNo} partisinin ıslama bilgileri kaydedildi. Soyma bekleniyor.";
+            return RedirectToPage();
+        }
+        catch(Exception ex){ErrorMessage=ex.Message;WorkId=workId;await LoadAsync();return Page();}
+    }
+
+    public async Task<IActionResult> OnPostSoymaAsync(long workId)
+    {
+        KeepOnly(nameof(Soyma));
+        Soyma.Silo1=Soyma.Silo1?.Trim().ToUpperInvariant();
+        Soyma.Silo2=Soyma.Silo2?.Trim().ToUpperInvariant();
+        SelectedWork=await repository.GetIslamaWorkflowItemAsync(workId);
+        if(SelectedWork is null||SelectedWork.Asama!=2)return NotFound();
+        if(!SelectedWork.HamSusamGelisTarihi.HasValue&&!Soyma.HamSusamGelisTarihi.HasValue)
+            ModelState.AddModelError("Soyma.HamSusamGelisTarihi","Ham susam geliş tarihi zorunludur.");
+        if(!SelectedWork.MenseiId.HasValue&&!Soyma.MenseiId.HasValue)
+            ModelState.AddModelError("Soyma.MenseiId","Ürün menşei zorunludur.");
+        if(Soyma.SoymaBitisi<Soyma.SoymaBaslangici)
+            ModelState.AddModelError("Soyma.SoymaBitisi","Soyma bitişi başlangıçtan önce olamaz.");
+        if(!ModelState.IsValid){WorkId=workId;await LoadAsync();return Page();}
+        try
+        {
+            await repository.CompleteSoymaStageAsync(workId,Soyma,HttpContext.PersonnelId());
+            TempData["Success"]=$"{SelectedWork.PartiNo} partisi tamamlandı ve üretim kayıtlarına aktarıldı.";
+            return RedirectToPage();
+        }
+        catch(Exception ex){ErrorMessage=ex.Message;WorkId=workId;await LoadAsync();return Page();}
+    }
+
     public async Task<IActionResult> OnPostDeleteAsync(long id)
     {
-        if(!IsAdmin&&(await repository.GetIslamaAsync(1,personnelId:HttpContext.PersonnelId())).FirstOrDefault()?.Id!=id)return Forbid();
-        try{await repository.DeleteProductionRecordAsync("Islama",id);TempData["Success"]="Islama-soyma kaydı silindi.";}catch(Exception ex){TempData["Error"]=ex.Message;}
+        if(!IsAdmin)return Forbid();
+        try{await repository.DeleteProductionRecordAsync("Islama",id);TempData["Success"]="Islama-soyma kaydı silindi.";}
+        catch(Exception ex){TempData["Error"]=ex.Message;}
         return RedirectToPage();
     }
 
-    private async Task LoadAsync(){try{Records=await repository.GetIslamaAsync(filter:Filter,personnelId:IsAdmin?null:HttpContext.PersonnelId());Menseiler=await repository.GetMenseilerAsync();Urunler=await repository.GetUrunlerAsync();Personeller=await repository.GetPersonellerAsync();}catch(Exception ex){ErrorMessage=ex.Message;}}
+    private void KeepOnly(string prefix)
+    {
+        foreach(var key in ModelState.Keys.Where(x=>!x.StartsWith(prefix+".",StringComparison.Ordinal)).ToArray())
+            ModelState.Remove(key);
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            Workflow=await repository.GetIslamaWorkflowAsync();
+            Records=await repository.GetIslamaAsync(filter:Filter,personnelId:null,onlyCreatedToday:true);
+            Menseiler=await repository.GetMenseilerAsync();
+            Urunler=await repository.GetUrunlerAsync();
+            if(WorkId is > 0)SelectedWork??=await repository.GetIslamaWorkflowItemAsync(WorkId.Value);
+        }
+        catch(Exception ex){ErrorMessage=ex.Message;}
+    }
 }

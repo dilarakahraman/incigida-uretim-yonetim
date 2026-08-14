@@ -31,6 +31,7 @@
                 <a class="@Active("/Paketleme")" asp-page="/Paketleme"><span class="nav-icon">▣</span>Paketleme</a>
                 <a class="@Active("/Dolum")" asp-page="/Dolum"><span class="nav-icon">▤</span>Dolum</a>
                 <a class="@Active("/Degirmen")" asp-page="/Degirmen"><span class="nav-icon">◉</span>Değirmen</a>
+                <a class="@Active("/TankTransfer")" asp-page="/TankTransfer"><span class="nav-icon">⇄</span>Tank Transferi</a>
                   <a class="@Active("/Kurutma")" asp-page="/Kurutma"><span class="nav-icon">☼</span>Kurutma</a>
                   <a class="@Active("/Cop")" asp-page="/Cop"><span class="nav-icon">♻</span>Giriş Eleme Çöpü</a>
                 <a class="@Active("/ExcelAktar")" asp-page="/ExcelAktar"><span class="nav-icon">⇩</span>Excel Aktar</a>
@@ -40,7 +41,11 @@
             else if (isPersonnel)
             {
                 <div class="nav-label">Görevim</div>
-                <a class="active" href="@taskPage"><span class="nav-icon">＋</span>@Context.Session.GetString(AccessSession.TaskNameKey)</a>
+                <a class="@Active(taskPage)" href="@taskPage"><span class="nav-icon">＋</span>@Context.Session.GetString(AccessSession.TaskNameKey)</a>
+                @if(Context.TaskNumber()==6)
+                {
+                    <a class="@Active("/TankTransfer")" asp-page="/TankTransfer"><span class="nav-icon">⇄</span>Tank Transferi</a>
+                }
             }
             </nav>
             <div class="sidebar-foot"><span class="status-dot"></span><span>@(isAdmin ? "SQL Server · SQLEXPRESS1" : $"#{Context.PersonnelId()} · {personnelName}")</span></div>

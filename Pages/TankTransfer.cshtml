@@ -1,0 +1,53 @@
+@page
+@model TankTransferModel
+@{ViewData["Title"]="Tank Transferi";}
+@if(Model.ErrorMessage is not null){<div class="notice error">@Model.ErrorMessage</div>}
+
+<section class="data-section sheet-entry-section">
+    <div class="section-head">
+        <div><h2>Yeni tank transferi</h2><p>Tankları seçin, miktarı yazın ve kaydedin.</p></div>
+        <a class="action-edit" asp-page="/Degirmen">Değirmene dön</a>
+    </div>
+    <form method="post" class="sheet-entry-form">
+        <div asp-validation-summary="All" class="validation sheet-validation"></div>
+        <div class="shift-header-fields">
+            <label>Ne zaman?<input asp-for="Input.TransferZamani" type="datetime-local"/></label>
+            <label>Hangi tanktan?<input asp-for="Input.KaynakTank" placeholder="Örnek: Tank 1"/></label>
+            <label>Hangi tanka?<input asp-for="Input.HedefTank" placeholder="Örnek: Tank 3"/></label>
+            <label>Kaç kilogram?<input asp-for="Input.MiktarKg" type="number" min="0.001" step="0.001" placeholder="0"/></label>
+            <label>Menşei<select asp-for="Input.MenseiId"><option value="">Menşei seçin</option>@foreach(var origin in Model.Menseiler){<option value="@origin.Id">@origin.Name</option>}</select></label>
+            @if(Model.IsAdmin)
+            {
+                <label>İşlemi yapan personel<select asp-for="Input.PersonelId"><option value="">Personel seçin</option>@foreach(var person in Model.Personeller){<option value="@person.Id">@person.Name</option>}</select></label>
+            }
+            else
+            {
+                <label>İşlemi yapan personel<input value="@Model.PersonnelName" disabled/></label>
+            }
+            <label class="shift-note">Açıklama<textarea asp-for="Input.Aciklama" rows="2" placeholder="Varsa kısa bir açıklama yazın"></textarea></label>
+        </div>
+        <div class="sheet-form-actions"><button class="btn-primary-app" type="submit">Transferi kaydet</button></div>
+    </form>
+</section>
+
+<section class="data-section">
+    <div class="section-head"><div><h2>Son tank transferleri</h2><p>Daha önce kaydedilen transferler</p></div><span class="count-badge">@Model.Transferler.Count kayıt</span></div>
+    <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Zaman</th><th>Kaynak</th><th>Hedef</th><th class="num">Miktar</th><th>Menşei</th><th>Personel</th><th>Açıklama</th><th></th></tr></thead>
+        <tbody>
+        @if(Model.Transferler.Count==0)
+        {
+            <tr><td colspan="8">Henüz tank transferi kaydedilmedi.</td></tr>
+        }
+        @foreach(var x in Model.Transferler)
+        {
+            <tr>
+                <td><strong>@x.TransferZamani.ToString("dd.MM.yyyy HH:mm")</strong></td>
+                <td>@x.KaynakTank</td><td>@x.HedefTank</td><td class="num">@x.MiktarKg.ToString("0.###") kg</td>
+                <td>@x.Mensei</td><td>@x.Personel</td><td>@(x.Aciklama??"—")</td>
+                <td><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu tank transferi silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></td>
+            </tr>
+        }
+        </tbody>
+    </table></div>
+</section>
