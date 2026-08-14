@@ -4,6 +4,13 @@ document.addEventListener("click", (event) => {
   }
 });
 
+document.addEventListener("submit", (event) => {
+  const submitter = event.submitter;
+  if (!(submitter instanceof HTMLElement) || !submitter.classList.contains("action-delete")) return;
+  if (!window.confirm("Bu işlem geri alınamaz. Kaydı silmek istediğinizden emin misiniz?"))
+    event.preventDefault();
+});
+
 document.querySelectorAll('.entry-form').forEach((form) => {
   const party = form.querySelector('[name="Input.PartiNo"]');
   const date = form.querySelector('[name="Input.SoymaBaslangici"]');

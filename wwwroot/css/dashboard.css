@@ -29,5 +29,8 @@
 .overview-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .packaging-panel,.filling-panel{grid-column:auto}
 .advanced-grid{grid-template-columns:1fr}
+.overview-product-origin{grid-template-columns:minmax(0,1.4fr) minmax(320px,.8fr);margin-top:12px}
+.overview-product-origin .horizontal-bars span small{display:block;color:var(--muted);font-size:8px;margin-top:2px}
 @media(max-width:1100px){.overview-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.overview-product-origin{grid-template-columns:1fr}}
 @media(max-width:480px){.overview-kpis.input-flow,.overview-kpis.output-flow{grid-template-columns:1fr}}
