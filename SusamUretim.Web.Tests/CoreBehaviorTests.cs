@@ -108,7 +108,7 @@ public sealed class CoreBehaviorTests
     }
 
     [Fact]
-    public void Dolum_RequiresTankInsteadOfProduct()
+    public void Dolum_RequiresOriginAndTankInsteadOfProduct()
     {
         var input = new DolumInput
         {
@@ -121,6 +121,7 @@ public sealed class CoreBehaviorTests
         var results = new List<ValidationResult>();
 
         Assert.False(Validator.TryValidateObject(input, new ValidationContext(input), results, true));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(DolumInput.MenseiId)));
         Assert.Contains(results, x => x.MemberNames.Contains(nameof(DolumInput.Tank)));
         Assert.DoesNotContain(results, x => x.MemberNames.Any(name => name.Contains("Urun", StringComparison.OrdinalIgnoreCase)));
     }
