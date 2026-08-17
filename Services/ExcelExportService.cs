@@ -365,6 +365,7 @@ public sealed class ExcelExportService
         var packetTitle = FindRow(sheet, 1, "PAKETLEME TABLOSU");
         var header = FindRow(sheet, 13, "tarih", packetTitle);
         var boundary = FindRow(sheet, 13, "KURUTULMUŞ KEPEK TABLOSU");
+        sheet.Cell(header, 18).Value = "Tank";
         sheet.Cell(header, 22).Value = "Fire Miktarı (kg)";
         var row = existingRow ?? NextRowBefore(sheet, header + 1, boundary, r => HasValue(sheet.Cell(r, 16)));
         SetDate(sheet.Cell(row, 13), item.Tarih, "dd.MM.yyyy");
@@ -372,7 +373,7 @@ public sealed class ExcelExportService
         sheet.Cell(row, 15).Value = item.AmbalajKg;
         sheet.Cell(row, 16).Value = item.PaketlemeAdedi;
         sheet.Cell(row, 17).FormulaA1 = $"O{row}*P{row}";
-        Set(sheet.Cell(row, 18), item.Urun);
+        Set(sheet.Cell(row, 18), item.Tank);
         Set(sheet.Cell(row, 19), item.Personel);
         Set(sheet.Cell(row, 20), item.PersonelSayisi);
         Set(sheet.Cell(row, 21), item.Aciklama);
@@ -637,7 +638,7 @@ public sealed class ExcelExportService
     {
         const string sql = """
             SELECT D.DolumKaydiId,COALESCE(D.Tarih,CONVERT(date,D.OlusturmaZamani)),D.AmbalajCinsi,D.AmbalajKg,D.PaketlemeAdedi,D.FireKg,
-                   U.Ad,D.Personel,D.PersonelSayisi,D.Aciklama
+                   COALESCE(D.Tank,U.Ad),D.Personel,D.PersonelSayisi,D.Aciklama
             FROM uretim.DolumKaydi D LEFT JOIN tanim.Urun U ON U.UrunId=D.UrunId
             WHERE D.KaynakSayfa IS NULL AND COALESCE(D.Tarih,CONVERT(date,D.OlusturmaZamani))>=@From AND COALESCE(D.Tarih,CONVERT(date,D.OlusturmaZamani))<@End
               AND (NOT EXISTS(SELECT 1 FROM uretim.ExcelAktarimDetayi X WHERE X.TabloAdi='Dolum' AND X.KayitId=D.DolumKaydiId)
