@@ -126,4 +126,28 @@ public sealed class CoreBehaviorTests
         Assert.Contains(results, x => x.MemberNames.Contains(nameof(DolumInput.Tank)));
         Assert.DoesNotContain(results, x => x.MemberNames.Any(name => name.Contains("Urun", StringComparison.OrdinalIgnoreCase)));
     }
+
+    [Fact]
+    public void Dolum_RequiresZeroWhenThereIsNoWaste()
+    {
+        var input = new DolumInput
+        {
+            Tarih = DateTime.Today,
+            AmbalajId = 1,
+            PaketlemeAdedi = 1,
+            MenseiId = 1,
+            Tank = "Tank 1",
+            PersonelSayisi = 1
+        };
+        var results = new List<ValidationResult>();
+
+        Assert.False(Validator.TryValidateObject(input, new ValidationContext(input), results, true));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(DolumInput.TahinFiresiKg)));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(DolumInput.AmbalajFiresiAdet)));
+
+        input.TahinFiresiKg = 0;
+        input.AmbalajFiresiAdet = 0;
+        results.Clear();
+        Assert.True(Validator.TryValidateObject(input, new ValidationContext(input), results, true));
+    }
 }
