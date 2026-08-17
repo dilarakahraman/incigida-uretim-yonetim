@@ -106,4 +106,22 @@ public sealed class CoreBehaviorTests
         Assert.Contains(results, x => x.MemberNames.Contains(nameof(KavurmaInput.KavurmaSicakligi)));
         Assert.Contains(results, x => x.MemberNames.Contains(nameof(KavurmaInput.NisastaKg)));
     }
+
+    [Fact]
+    public void Dolum_RequiresTankInsteadOfProduct()
+    {
+        var input = new DolumInput
+        {
+            Tarih = DateTime.Today,
+            AmbalajId = 1,
+            PaketlemeAdedi = 1,
+            FireKg = 0,
+            PersonelSayisi = 1
+        };
+        var results = new List<ValidationResult>();
+
+        Assert.False(Validator.TryValidateObject(input, new ValidationContext(input), results, true));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(DolumInput.Tank)));
+        Assert.DoesNotContain(results, x => x.MemberNames.Any(name => name.Contains("Urun", StringComparison.OrdinalIgnoreCase)));
+    }
 }
