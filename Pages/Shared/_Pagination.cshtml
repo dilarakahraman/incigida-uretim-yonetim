@@ -1,0 +1,12 @@
+@model SusamUretim.Web.Models.PaginationViewModel
+@{
+    var f=Model.Filter;
+    var currentPage=f.ValidPage;
+}
+<nav class="record-pagination" aria-label="Kayıt sayfaları">
+    <span>Sayfa @currentPage · Sayfada @f.ValidPageSize kayıt</span>
+    <div>
+        @if(currentPage>1){<a class="btn-secondary-app" asp-route-Filter.Page="@(currentPage-1)" asp-route-Filter.PageSize="@f.ValidPageSize" asp-route-Filter.Search="@f.Search" asp-route-Filter.From="@(f.From?.ToString("yyyy-MM-dd"))" asp-route-Filter.To="@(f.To?.ToString("yyyy-MM-dd"))">← Önceki</a>}
+        @if(Model.HasNext){<a class="btn-secondary-app" asp-route-Filter.Page="@(currentPage+1)" asp-route-Filter.PageSize="@f.ValidPageSize" asp-route-Filter.Search="@f.Search" asp-route-Filter.From="@(f.From?.ToString("yyyy-MM-dd"))" asp-route-Filter.To="@(f.To?.ToString("yyyy-MM-dd"))">Sonraki →</a>}
+    </div>
+</nav>
