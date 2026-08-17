@@ -74,11 +74,13 @@ public sealed class RecordFilter
 public sealed record IslamaListItem(
     long Id, string PartiNo, DateTime SoymaBitisi, int SoymaSuresiDakika,
     decimal CekilenTonajKg, decimal? CopKg, string Mensei, string Urun, string? Silo,
-    string? HavuzNo, string? Hazirlayan, string? IslamaPersoneli, string? SoymaPersoneli);
+    string? HavuzNo, decimal? SalamuraDerecesi, decimal? YedekDerecesi,
+    string? Hazirlayan, string? IslamaPersoneli, string? SoymaPersoneli);
 
 public sealed record IslamaWorkflowItem(
     long Id, string PartiNo, byte Asama, DateTime NobetTarihi, DateTime? HamSusamGelisTarihi, DateTime IslamaTarihi,
-    string HavuzNo, int? MenseiId, string? Mensei, DateTime? IslamaBaslangici, DateTime? IslamaBitisi,
+    string? HavuzNo, decimal? EkranTonajiKg, decimal? CekilenTonajKg,
+    int? MenseiId, string? Mensei, DateTime? IslamaBaslangici, DateTime? IslamaBitisi,
     string? Hazirlayan, string? IslamaPersoneli, DateTime GuncellemeZamani);
 
 public sealed class IslamaHazirlikInput
@@ -86,8 +88,9 @@ public sealed class IslamaHazirlikInput
     [Required, DataType(DataType.Date)] public DateTime? NobetTarihi { get; set; } = DateTime.Today;
     [Required, DataType(DataType.Date)] public DateTime? HamSusamGelisTarihi { get; set; } = DateTime.Today;
     [Required, DataType(DataType.Date)] public DateTime? IslamaTarihi { get; set; } = DateTime.Today;
-    [Required, StringLength(30)] public string HavuzNo { get; set; } = "";
     [Required, Range(1,int.MaxValue)] public int? MenseiId { get; set; }
+    [Required, Range(0, 999999999)] public decimal? EkranTonajiKg { get; set; }
+    [Required, Range(0.001, 999999999)] public decimal? CekilenTonajKg { get; set; }
 }
 
 public sealed class IslamaSurecInput
@@ -103,8 +106,11 @@ public sealed class SoymaTamamlamaInput
     [Required, Range(0, 999999)] public decimal? CopKg { get; set; }
     [Required] public DateTime? SoymaBaslangici { get; set; }
     [Required] public DateTime? SoymaBitisi { get; set; }
-    [Required, Range(0, 999999999)] public decimal? EkranTonajiKg { get; set; }
-    [Required, Range(0.001, 999999999)] public decimal? CekilenTonajKg { get; set; }
+    [Required, StringLength(30)] public string? HavuzNo { get; set; }
+    [Required, Range(0, 999)] public decimal? SalamuraDerecesi { get; set; }
+    [Required, Range(0, 999)] public decimal? YedekDerecesi { get; set; }
+    public decimal? EkranTonajiKg { get; set; }
+    public decimal? CekilenTonajKg { get; set; }
     [Required, StringLength(2), RegularExpression("(?i)^[ABC][1-4]$")]
     public string? Silo1 { get; set; }
     [Required, StringLength(2), RegularExpression("(?i)^[ABC][1-4]$")]
@@ -116,7 +122,8 @@ public sealed class SoymaTamamlamaInput
 
 public sealed record KavurmaListItem(
     long Id, DateTime? Tarih, string? PartiNo, decimal NetTonajKg,
-    string? Personel, decimal? KepekKg, int? TavaSayisi, string? Urun);
+    string? Personel, decimal? KepekKg, int? TavaSayisi, string? Urun,
+    decimal? KavurmaSicakligi, decimal? NisastaKg);
 
 public sealed record PaketlemeListItem(
     long Id, DateTime? Tarih, string? PartiNo, decimal MiktarKg,
@@ -177,6 +184,8 @@ public sealed class KavurmaInput
     [Required, StringLength(50)] public string? PartiNo { get; set; }
     [Required, Range(0, 999999999)] public decimal? EkranTonajiKg { get; set; }
     [Range(0.001, 999999999)] public decimal NetTonajKg { get; set; }
+    [Required, Range(0, 999)] public decimal? KavurmaSicakligi { get; set; }
+    [Required, Range(0, 999999999)] public decimal? NisastaKg { get; set; }
     public int? PersonelId { get; set; }
     [Required, Range(0,999999999)] public decimal? KepekKg { get; set; }
     [Required, Range(0, 100000)] public int? TavaSayisi { get; set; }
