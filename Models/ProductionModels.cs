@@ -68,8 +68,15 @@ public sealed class RecordFilter
     [StringLength(100)] public string? Search { get; set; }
     [DataType(DataType.Date)] public DateTime? From { get; set; }
     [DataType(DataType.Date)] public DateTime? To { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 25;
+    public int ValidPage => Math.Max(1, Page);
+    public int ValidPageSize => PageSize is 50 or 100 ? PageSize : 25;
+    public int Offset => (ValidPage - 1) * ValidPageSize;
     public bool IsActive => !string.IsNullOrWhiteSpace(Search) || From.HasValue || To.HasValue;
 }
+
+public sealed record PaginationViewModel(RecordFilter Filter, bool HasNext);
 
 public sealed record IslamaListItem(
     long Id, string PartiNo, DateTime SoymaBitisi, int SoymaSuresiDakika,
