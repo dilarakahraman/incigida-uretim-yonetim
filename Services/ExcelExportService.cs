@@ -268,7 +268,7 @@ public sealed class ExcelExportService
         for (var row = paketlemeTitle + 2; row <= lastRow; row++)
             sheet.Cell(row, 1).FormulaA1 = $"IFERROR(B{row}*C{row},0)";
 
-        sheet.Range(dolumHeader + 1, 13, kepekTitle - 1, 23).Clear(XLClearOptions.Contents);
+        sheet.Range(dolumHeader + 1, 13, kepekTitle - 1, 24).Clear(XLClearOptions.Contents);
         for (var row = dolumHeader + 1; row < kepekTitle; row++)
             sheet.Cell(row, 17).FormulaA1 = $"IFERROR(O{row}*P{row},0)";
 
@@ -366,8 +366,9 @@ public sealed class ExcelExportService
         var header = FindRow(sheet, 13, "tarih", packetTitle);
         var boundary = FindRow(sheet, 13, "KURUTULMUŞ KEPEK TABLOSU");
         sheet.Cell(header, 18).Value = "Ürün Menşei";
-        sheet.Cell(header, 22).Value = "Fire Miktarı (kg)";
+        sheet.Cell(header, 22).Value = "Tahin Firesi (kg)";
         sheet.Cell(header, 23).Value = "Tank";
+        sheet.Cell(header, 24).Value = "Ambalaj Firesi (adet)";
         var row = existingRow ?? NextRowBefore(sheet, header + 1, boundary, r => HasValue(sheet.Cell(r, 16)));
         SetDate(sheet.Cell(row, 13), item.Tarih, "dd.MM.yyyy");
         sheet.Cell(row, 14).Value = item.AmbalajCinsi;
@@ -378,8 +379,9 @@ public sealed class ExcelExportService
         Set(sheet.Cell(row, 19), item.Personel);
         Set(sheet.Cell(row, 20), item.PersonelSayisi);
         Set(sheet.Cell(row, 21), item.Aciklama);
-        Set(sheet.Cell(row, 22), item.FireKg);
+        Set(sheet.Cell(row, 22), item.TahinFiresiKg);
         Set(sheet.Cell(row, 23), item.Tank);
+        Set(sheet.Cell(row, 24), item.AmbalajFiresiAdet);
         return row;
     }
 
@@ -422,7 +424,7 @@ public sealed class ExcelExportService
             "Islama" => (1,21),
             "Kavurma" => (1,17),
             "Paketleme" => (1,11),
-            "Dolum" => (13,23),
+            "Dolum" => (13,24),
             "Kepek" => (13,21),
             "KavurmaKepek" => (13,21),
             _ => throw new ArgumentOutOfRangeException(nameof(table))
@@ -639,8 +641,8 @@ public sealed class ExcelExportService
     private static async Task<List<DolumExportRow>> ReadDolumAsync(SqlConnection connection, DateTime from, DateTime end, CancellationToken ct)
     {
         const string sql = """
-            SELECT D.DolumKaydiId,COALESCE(D.Tarih,CONVERT(date,D.OlusturmaZamani)),D.AmbalajCinsi,D.AmbalajKg,D.PaketlemeAdedi,D.FireKg,
-                   M.Ad,D.Tank,D.Personel,D.PersonelSayisi,D.Aciklama
+            SELECT D.DolumKaydiId,COALESCE(D.Tarih,CONVERT(date,D.OlusturmaZamani)),D.AmbalajCinsi,D.AmbalajKg,D.PaketlemeAdedi,COALESCE(D.TahinFiresiKg,D.FireKg),
+                   D.AmbalajFiresiAdet,M.Ad,D.Tank,D.Personel,D.PersonelSayisi,D.Aciklama
             FROM uretim.DolumKaydi D LEFT JOIN tanim.Mensei M ON M.MenseiId=D.MenseiId
             WHERE D.KaynakSayfa IS NULL AND COALESCE(D.Tarih,CONVERT(date,D.OlusturmaZamani))>=@From AND COALESCE(D.Tarih,CONVERT(date,D.OlusturmaZamani))<@End
               AND (NOT EXISTS(SELECT 1 FROM uretim.ExcelAktarimDetayi X WHERE X.TabloAdi='Dolum' AND X.KayitId=D.DolumKaydiId)
@@ -649,7 +651,7 @@ public sealed class ExcelExportService
             """;
         var list = new List<DolumExportRow>();
         await using var command = DateCommand(sql, connection, from, end); await using var r = await command.ExecuteReaderAsync(ct);
-        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),r.GetDateTime(1),r.GetString(2),r.GetDecimal(3),r.GetInt32(4),D<decimal>(r,5),S(r,6),S(r,7),S(r,8),D<int>(r,9),S(r,10)));
+        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),r.GetDateTime(1),r.GetString(2),r.GetDecimal(3),r.GetInt32(4),D<decimal>(r,5),D<int>(r,6),S(r,7),S(r,8),S(r,9),D<int>(r,10),S(r,11)));
         return list;
     }
 
