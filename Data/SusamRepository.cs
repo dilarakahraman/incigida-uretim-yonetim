@@ -142,6 +142,9 @@ public sealed class SusamRepository(IConfiguration configuration)
             IF COL_LENGTH('uretim.PaketlemeKaydi','FireKg') IS NULL ALTER TABLE uretim.PaketlemeKaydi ADD FireKg decimal(18,3) NULL;
             IF COL_LENGTH('uretim.DolumKaydi','FireKg') IS NULL ALTER TABLE uretim.DolumKaydi ADD FireKg decimal(18,3) NULL;
             IF COL_LENGTH('uretim.DolumKaydi','Tank') IS NULL ALTER TABLE uretim.DolumKaydi ADD Tank nvarchar(100) NULL;
+            IF COL_LENGTH('uretim.DolumKaydi','MenseiId') IS NULL ALTER TABLE uretim.DolumKaydi ADD MenseiId int NULL;
+            IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_DolumKaydi_Mensei')
+                ALTER TABLE uretim.DolumKaydi WITH CHECK ADD CONSTRAINT FK_DolumKaydi_Mensei FOREIGN KEY(MenseiId) REFERENCES tanim.Mensei(MenseiId);
             IF OBJECT_ID(N'tanim.UygulamaAyari',N'U') IS NULL
                 CREATE TABLE tanim.UygulamaAyari(AyarKodu varchar(50) NOT NULL CONSTRAINT PK_UygulamaAyari PRIMARY KEY,Deger nvarchar(1000) NULL);
             IF NOT EXISTS(SELECT 1 FROM tanim.Silo WHERE Kod=N'Silo 1') INSERT tanim.Silo(Kod,Aktif) VALUES(N'Silo 1',1);
@@ -328,7 +331,7 @@ public sealed class SusamRepository(IConfiguration configuration)
         try
         {
             await SyncDefinitionsAsync(connection,transaction,"tanim.Mensei","MenseiId","Ad",catalog.Origins,
-                [("uretim.IslamaSoymaKaydi","MenseiId"),("uretim.KavurmaKaydi","MenseiId"),("uretim.PaketlemeKaydi","MenseiId")]);
+                [("uretim.IslamaSoymaKaydi","MenseiId"),("uretim.KavurmaKaydi","MenseiId"),("uretim.PaketlemeKaydi","MenseiId"),("uretim.DolumKaydi","MenseiId")]);
             await SyncDefinitionsAsync(connection,transaction,"tanim.Urun","UrunId","Ad",catalog.Products,
                 [("uretim.IslamaSoymaKaydi","UrunId"),("uretim.KavurmaKaydi","UrunId"),("uretim.PaketlemeKaydi","UrunId"),("uretim.DolumKaydi","UrunId")]);
             await transaction.CommitAsync();
@@ -1249,15 +1252,15 @@ public sealed class SusamRepository(IConfiguration configuration)
 
     public async Task<List<DolumListItem>> GetDolumAsync(int take=100, RecordFilter? filter=null,int? personnelId=null)
     {
-        const string sql="""SELECT TOP (@Take) D.DolumKaydiId,D.Tarih,NULL,CONCAT(D.AmbalajCinsi,' ',FORMAT(D.AmbalajKg,'0.###'),' kg'),D.PaketlemeMiktariKg,D.PaketlemeAdedi,D.FireKg,COALESCE(D.Tank,U.Ad) FROM uretim.DolumKaydi D LEFT JOIN tanim.Urun U ON U.UrunId=D.UrunId WHERE (@Like IS NULL OR D.AmbalajCinsi LIKE @Like OR D.Personel LIKE @Like OR D.Tank LIKE @Like OR U.Ad LIKE @Like) AND (@PersonnelId IS NULL OR D.PersonelId=@PersonnelId) AND (@From IS NULL OR D.Tarih>=@From) AND (@To IS NULL OR D.Tarih<=@To) ORDER BY D.DolumKaydiId DESC;""";
-        var list=new List<DolumListItem>();await using var c=CreateConnection();await c.OpenAsync();await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Take",take);AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);await using var r=await cmd.ExecuteReaderAsync();while(await r.ReadAsync())list.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetString(3),r.GetDecimal(4),r.GetInt32(5),D<decimal>(r,6),S(r,7)));return list;
+        const string sql="""SELECT TOP (@Take) D.DolumKaydiId,D.Tarih,NULL,CONCAT(D.AmbalajCinsi,' ',FORMAT(D.AmbalajKg,'0.###'),' kg'),D.PaketlemeMiktariKg,D.PaketlemeAdedi,D.FireKg,M.Ad,D.Tank FROM uretim.DolumKaydi D LEFT JOIN tanim.Mensei M ON M.MenseiId=D.MenseiId WHERE (@Like IS NULL OR D.AmbalajCinsi LIKE @Like OR D.Personel LIKE @Like OR D.Tank LIKE @Like OR M.Ad LIKE @Like) AND (@PersonnelId IS NULL OR D.PersonelId=@PersonnelId) AND (@From IS NULL OR D.Tarih>=@From) AND (@To IS NULL OR D.Tarih<=@To) ORDER BY D.DolumKaydiId DESC;""";
+        var list=new List<DolumListItem>();await using var c=CreateConnection();await c.OpenAsync();await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Take",take);AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);await using var r=await cmd.ExecuteReaderAsync();while(await r.ReadAsync())list.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetString(3),r.GetDecimal(4),r.GetInt32(5),D<decimal>(r,6),S(r,7),S(r,8)));return list;
     }
 
     public Task InsertDolumAsync(DolumInput x)=>ExecuteAsync("""
-        INSERT uretim.DolumKaydi(Tarih,PartiNo,AmbalajId,AmbalajCinsi,AmbalajKg,PaketlemeAdedi,FireKg,UrunId,Tank,Personel,PersonelSayisi,Aciklama,PersonelId,Olusturan)
-        SELECT @Tarih,NULL,A.AmbalajId,A.Cins,A.AgirlikKg,@Adet,@Fire,NULL,@Tank,COALESCE(P.AdSoyad,@Personel),@PersonelSayisi,@Aciklama,@PersonelId,SUSER_SNAME()
+        INSERT uretim.DolumKaydi(Tarih,PartiNo,AmbalajId,AmbalajCinsi,AmbalajKg,PaketlemeAdedi,FireKg,UrunId,MenseiId,Tank,Personel,PersonelSayisi,Aciklama,PersonelId,Olusturan)
+        SELECT @Tarih,NULL,A.AmbalajId,A.Cins,A.AgirlikKg,@Adet,@Fire,NULL,@Mensei,@Tank,COALESCE(P.AdSoyad,@Personel),@PersonelSayisi,@Aciklama,@PersonelId,SUSER_SNAME()
         FROM tanim.Ambalaj A LEFT JOIN tanim.Personel P ON P.PersonelId=@PersonelId WHERE A.AmbalajId=@AmbalajId;
-        """,p=>{Add(p,"@Tarih",x.Tarih);Add(p,"@AmbalajId",x.AmbalajId);Add(p,"@Adet",x.PaketlemeAdedi);Add(p,"@Fire",x.FireKg);Add(p,"@Tank",x.Tank?.Trim());Add(p,"@Personel",x.Personel);Add(p,"@PersonelId",x.PersonelId);Add(p,"@PersonelSayisi",x.PersonelSayisi);Add(p,"@Aciklama",x.Aciklama);});
+        """,p=>{Add(p,"@Tarih",x.Tarih);Add(p,"@AmbalajId",x.AmbalajId);Add(p,"@Adet",x.PaketlemeAdedi);Add(p,"@Fire",x.FireKg);Add(p,"@Mensei",x.MenseiId);Add(p,"@Tank",x.Tank?.Trim());Add(p,"@Personel",x.Personel);Add(p,"@PersonelId",x.PersonelId);Add(p,"@PersonelSayisi",x.PersonelSayisi);Add(p,"@Aciklama",x.Aciklama);});
 
     public async Task<List<KepekListItem>> GetKepekAsync(int take=100, RecordFilter? filter=null)
     {
@@ -1304,15 +1307,15 @@ public sealed class SusamRepository(IConfiguration configuration)
 
     public async Task<DolumInput?> GetDolumInputAsync(long id,int? personnelId=null)
     {
-        const string sql="""SELECT Tarih,AmbalajId,PaketlemeAdedi,FireKg,COALESCE(Tank,U.Ad),Personel,PersonelSayisi,Aciklama,PersonelId FROM uretim.DolumKaydi D LEFT JOIN tanim.Urun U ON U.UrunId=D.UrunId WHERE DolumKaydiId=@Id AND (@PersonnelId IS NULL OR PersonelId=@PersonnelId);""";
+        const string sql="""SELECT Tarih,AmbalajId,PaketlemeAdedi,FireKg,MenseiId,Tank,Personel,PersonelSayisi,Aciklama,PersonelId FROM uretim.DolumKaydi WHERE DolumKaydiId=@Id AND (@PersonnelId IS NULL OR PersonelId=@PersonnelId);""";
         await using var c=CreateConnection();await c.OpenAsync();await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Id",id);Add(cmd.Parameters,"@PersonnelId",personnelId);await using var r=await cmd.ExecuteReaderAsync();if(!await r.ReadAsync())return null;
-        return new(){Tarih=D<DateTime>(r,0),AmbalajId=r.GetInt32(1),PaketlemeAdedi=r.GetInt32(2),FireKg=D<decimal>(r,3),Tank=S(r,4),Personel=S(r,5),PersonelSayisi=D<int>(r,6),Aciklama=S(r,7),PersonelId=D<int>(r,8)};
+        return new(){Tarih=D<DateTime>(r,0),AmbalajId=r.GetInt32(1),PaketlemeAdedi=r.GetInt32(2),FireKg=D<decimal>(r,3),MenseiId=D<int>(r,4),Tank=S(r,5),Personel=S(r,6),PersonelSayisi=D<int>(r,7),Aciklama=S(r,8),PersonelId=D<int>(r,9)};
     }
 
     public Task UpdateDolumAsync(long id,DolumInput x)=>ExecuteAsync("""
-        UPDATE D SET D.Tarih=@Tarih,D.PartiNo=NULL,D.AmbalajId=A.AmbalajId,D.AmbalajCinsi=A.Cins,D.AmbalajKg=A.AgirlikKg,D.PaketlemeAdedi=@Adet,D.FireKg=@Fire,D.UrunId=NULL,D.Tank=@Tank,D.Personel=COALESCE(P.AdSoyad,@Personel),D.PersonelSayisi=@PersonelSayisi,D.Aciklama=@Aciklama,D.PersonelId=@PersonelId
+        UPDATE D SET D.Tarih=@Tarih,D.PartiNo=NULL,D.AmbalajId=A.AmbalajId,D.AmbalajCinsi=A.Cins,D.AmbalajKg=A.AgirlikKg,D.PaketlemeAdedi=@Adet,D.FireKg=@Fire,D.UrunId=NULL,D.MenseiId=@Mensei,D.Tank=@Tank,D.Personel=COALESCE(P.AdSoyad,@Personel),D.PersonelSayisi=@PersonelSayisi,D.Aciklama=@Aciklama,D.PersonelId=@PersonelId
         FROM uretim.DolumKaydi D JOIN tanim.Ambalaj A ON A.AmbalajId=@AmbalajId LEFT JOIN tanim.Personel P ON P.PersonelId=@PersonelId WHERE D.DolumKaydiId=@Id;
-        """,p=>{Add(p,"@Id",id);Add(p,"@Tarih",x.Tarih);Add(p,"@AmbalajId",x.AmbalajId);Add(p,"@Adet",x.PaketlemeAdedi);Add(p,"@Fire",x.FireKg);Add(p,"@Tank",x.Tank?.Trim());Add(p,"@Personel",x.Personel);Add(p,"@PersonelId",x.PersonelId);Add(p,"@PersonelSayisi",x.PersonelSayisi);Add(p,"@Aciklama",x.Aciklama);});
+        """,p=>{Add(p,"@Id",id);Add(p,"@Tarih",x.Tarih);Add(p,"@AmbalajId",x.AmbalajId);Add(p,"@Adet",x.PaketlemeAdedi);Add(p,"@Fire",x.FireKg);Add(p,"@Mensei",x.MenseiId);Add(p,"@Tank",x.Tank?.Trim());Add(p,"@Personel",x.Personel);Add(p,"@PersonelId",x.PersonelId);Add(p,"@PersonelSayisi",x.PersonelSayisi);Add(p,"@Aciklama",x.Aciklama);});
 
     public async Task<KepekInput?> GetKepekInputAsync(long id)
     {
