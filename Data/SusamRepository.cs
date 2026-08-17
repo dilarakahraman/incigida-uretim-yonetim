@@ -145,6 +145,18 @@ public sealed class SusamRepository(IConfiguration configuration)
             IF COL_LENGTH('uretim.DolumKaydi','MenseiId') IS NULL ALTER TABLE uretim.DolumKaydi ADD MenseiId int NULL;
             IF NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name='FK_DolumKaydi_Mensei')
                 ALTER TABLE uretim.DolumKaydi WITH CHECK ADD CONSTRAINT FK_DolumKaydi_Mensei FOREIGN KEY(MenseiId) REFERENCES tanim.Mensei(MenseiId);
+            UPDATE D
+            SET MenseiId=Eslesen.MenseiId
+            FROM uretim.DolumKaydi D
+            JOIN tanim.Urun U ON U.UrunId=D.UrunId
+            CROSS APPLY
+            (
+                SELECT TOP(1) M.MenseiId
+                FROM tanim.Mensei M
+                WHERE LTRIM(RTRIM(M.Ad)) COLLATE Turkish_100_CI_AI = LTRIM(RTRIM(U.Ad)) COLLATE Turkish_100_CI_AI
+                ORDER BY M.Aktif DESC,M.MenseiId
+            ) Eslesen
+            WHERE D.MenseiId IS NULL;
             IF OBJECT_ID(N'tanim.UygulamaAyari',N'U') IS NULL
                 CREATE TABLE tanim.UygulamaAyari(AyarKodu varchar(50) NOT NULL CONSTRAINT PK_UygulamaAyari PRIMARY KEY,Deger nvarchar(1000) NULL);
             IF NOT EXISTS(SELECT 1 FROM tanim.Silo WHERE Kod=N'Silo 1') INSERT tanim.Silo(Kod,Aktif) VALUES(N'Silo 1',1);
