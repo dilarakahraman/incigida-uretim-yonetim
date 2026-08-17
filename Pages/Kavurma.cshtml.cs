@@ -15,6 +15,7 @@ public sealed class KavurmaModel(SusamRepository repository) : PageModel
     public bool IsAdmin => HttpContext.IsAdmin();
     public string? PersonnelName => HttpContext.PersonnelName();
     public List<KavurmaListItem> Records { get; private set; } = [];
+    public bool HasNextPage { get; private set; }
     public List<LookupItem> Personeller { get; private set; } = [];
     public List<LookupItem> Menseiler { get; private set; } = [];
     public List<LookupItem> Urunler { get; private set; } = [];
@@ -80,7 +81,9 @@ public sealed class KavurmaModel(SusamRepository repository) : PageModel
     {
         try
         {
-            Records = await repository.GetKavurmaAsync(filter: Filter,personnelId:IsAdmin?null:HttpContext.PersonnelId());
+            Records = await repository.GetKavurmaAsync(Filter.ValidPageSize+1,filter:Filter,personnelId:IsAdmin?null:HttpContext.PersonnelId(),skip:Filter.Offset);
+            HasNextPage=Records.Count>Filter.ValidPageSize;
+            if(HasNextPage)Records.RemoveAt(Records.Count-1);
             Personeller = await repository.GetPersonellerAsync();
             Menseiler = await repository.GetMenseilerAsync();
             Urunler = await repository.GetUrunlerAsync();
