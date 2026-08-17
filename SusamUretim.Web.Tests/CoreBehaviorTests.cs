@@ -77,4 +77,33 @@ public sealed class CoreBehaviorTests
     {
         Assert.False(ExcelExportRouting.IsSingleYear(new DateTime(2026, 12, 31), new DateTime(2027, 1, 1)));
     }
+
+    [Fact]
+    public void IslamaHazirlik_RequiresShiftTonnagesButNotPool()
+    {
+        var input = new IslamaHazirlikInput
+        {
+            NobetTarihi = DateTime.Today,
+            HamSusamGelisTarihi = DateTime.Today,
+            IslamaTarihi = DateTime.Today,
+            MenseiId = 1
+        };
+
+        var results = new List<ValidationResult>();
+        Assert.False(Validator.TryValidateObject(input, new ValidationContext(input), results, true));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(IslamaHazirlikInput.EkranTonajiKg)));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(IslamaHazirlikInput.CekilenTonajKg)));
+        Assert.DoesNotContain(results, x => x.MemberNames.Contains("HavuzNo"));
+    }
+
+    [Fact]
+    public void Kavurma_RequiresTemperatureAndStarch()
+    {
+        var input = new KavurmaInput();
+        var results = new List<ValidationResult>();
+
+        Assert.False(Validator.TryValidateObject(input, new ValidationContext(input), results, true));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(KavurmaInput.KavurmaSicakligi)));
+        Assert.Contains(results, x => x.MemberNames.Contains(nameof(KavurmaInput.NisastaKg)));
+    }
 }
