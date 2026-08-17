@@ -7,7 +7,7 @@
 <div class="@(Model.IsAdmin ? "workspace-grid" : "personnel-entry")">
     <section class="data-section">
         <div class="section-head">
-            <div><h2>Kavurma kayıtları</h2><p>Son 100 kavurma işlemi</p></div>
+            <div><h2>Kavurma kayıtları</h2><p>Kayıtlar sayfalar hâlinde gösterilir</p></div>
             <span class="count-badge">@Model.Records.Count kayıt</span>
         </div>
         <partial name="Shared/_RecordFilter" model="Model.Filter"/>
@@ -31,6 +31,7 @@
             }
             </tbody>
         </table></div>
+        <partial name="Shared/_Pagination" model="@(new PaginationViewModel(Model.Filter,Model.HasNextPage))"/>
     </section>
     <aside class="entry-panel">
         <div class="panel-head"><h2>@(Model.EditId is > 0 ? "Kavurma kaydını düzenle" : Model.IsAdmin ? "Yeni kavurma kaydı" : "Kavurma görev kaydı")</h2><span>@(Model.IsAdmin ? "Kavurma" : Model.PersonnelName)</span></div>
