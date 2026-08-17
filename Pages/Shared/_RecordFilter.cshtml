@@ -9,10 +9,15 @@
     <label>Bitiş
         <input name="Filter.To" value="@(Model.To?.ToString("yyyy-MM-dd"))" type="date" />
     </label>
+    <label>Göster
+        <select name="Filter.PageSize">
+            @foreach(var size in new[]{25,50,100}){<option value="@size" selected="@(Model.ValidPageSize==size)">@size kayıt</option>}
+        </select>
+    </label>
+    <input type="hidden" name="Filter.Page" value="1" />
     <button class="btn-primary-app" type="submit">Filtrele</button>
     @if (Model.IsActive)
     {
         <a class="filter-clear" href="@Context.Request.Path">Temizle</a>
     }
 </form>
-
