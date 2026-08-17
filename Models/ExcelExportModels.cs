@@ -6,13 +6,14 @@ public sealed record IslamaExportRow(
     long Id, string? BarkodSeri, DateTime? HamSusamGelisTarihi, decimal? CopKg, string PartiNo,
     DateTime? NobetTarihi, string? HavuzNo, DateTime? IslamaBaslangici, DateTime? IslamaBitisi,
     DateTime SoymaBaslangici, DateTime SoymaBitisi, decimal? EkranTonajiKg, decimal CekilenTonajKg,
-    string? Silo, string Mensei, string Urun, string? Aciklama);
+    string? Silo, string Mensei, string Urun, string? Aciklama,
+    decimal? SalamuraDerecesi, decimal? YedekDerecesi);
 
 public sealed record KavurmaExportRow(
     long Id, DateTime Tarih, string? PartiNo, decimal? EkranTonajiKg, decimal NetTonajKg,
     string? Personel, int? TavaSayisi, int? ArizaliTavaSayisi, decimal? CikanSorteksAltiKg,
     decimal? EklenenSorteksAltiKg, string? Mensei, string? Urun, decimal? OrtalamaVerimOrani,
-    decimal? VerimOrani, string? Aciklama);
+    decimal? VerimOrani, string? Aciklama, decimal? KavurmaSicakligi, decimal? NisastaKg);
 
 public sealed record PaketlemeExportRow(
     long Id, DateTime Tarih, decimal AmbalajAgirligiKg, int Adet, decimal? CikanSorteksAltiKg,
