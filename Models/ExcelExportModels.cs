@@ -22,7 +22,7 @@ public sealed record PaketlemeExportRow(
 
 public sealed record DolumExportRow(
     long Id, DateTime Tarih, string AmbalajCinsi, decimal AmbalajKg, int PaketlemeAdedi,
-    decimal? FireKg, string? Urun, string? Personel, int? PersonelSayisi, string? Aciklama);
+    decimal? FireKg, string? Tank, string? Personel, int? PersonelSayisi, string? Aciklama);
 
 public sealed record KepekExportRow(
     long Id, DateTime Tarih, decimal PaketlemeMiktariKg, string? UrunCinsi,
