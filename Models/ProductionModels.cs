@@ -221,8 +221,10 @@ public sealed class DolumInput
     [Required, DataType(DataType.Date)] public DateTime? Tarih { get; set; } = DateTime.Today;
     [Range(1, int.MaxValue)] public int AmbalajId { get; set; }
     [Range(1, int.MaxValue)] public int PaketlemeAdedi { get; set; }
-    [Required, Range(0, 999999999)] public decimal? TahinFiresiKg { get; set; }
-    [Required, Range(0, 1000000)] public int? AmbalajFiresiAdet { get; set; }
+    [Required(ErrorMessage="Tahin firesi yoksa 0 girin."), Range(0, 999999999, ErrorMessage="Tahin firesi 0 veya daha büyük olmalıdır.")]
+    public decimal? TahinFiresiKg { get; set; }
+    [Required(ErrorMessage="Ambalaj firesi yoksa 0 girin."), Range(0, 1000000, ErrorMessage="Ambalaj firesi 0 veya daha büyük olmalıdır.")]
+    public int? AmbalajFiresiAdet { get; set; }
     [Required, Range(1,int.MaxValue)] public int? MenseiId { get; set; }
     [Required, StringLength(100)] public string? Tank { get; set; }
     [StringLength(200)] public string? Personel { get; set; }
