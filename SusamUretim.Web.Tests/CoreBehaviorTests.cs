@@ -115,7 +115,8 @@ public sealed class CoreBehaviorTests
             Tarih = DateTime.Today,
             AmbalajId = 1,
             PaketlemeAdedi = 1,
-            FireKg = 0,
+            TahinFiresiKg = 0,
+            AmbalajFiresiAdet = 0,
             PersonelSayisi = 1
         };
         var results = new List<ValidationResult>();
