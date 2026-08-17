@@ -110,7 +110,7 @@ public sealed class IslamaModel(SusamRepository repository) : PageModel
         try
         {
             Workflow=await repository.GetIslamaWorkflowAsync();
-            Records=await repository.GetIslamaAsync(filter:Filter,personnelId:null,onlyCreatedToday:true);
+            Records=await repository.GetIslamaAsync(filter:Filter,personnelId:null);
             Menseiler=await repository.GetMenseilerAsync();
             Urunler=await repository.GetUrunlerAsync();
             if(WorkId is > 0)SelectedWork??=await repository.GetIslamaWorkflowItemAsync(WorkId.Value);
