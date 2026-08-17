@@ -24,9 +24,9 @@
 <section class="data-section completed-records completed-records-top">
     <div class="section-head"><div><h2>Bugün tamamlanan kayıtlar</h2><p>Yalnızca bugün sisteme eklenen ıslama-soyma işlemleri</p></div><span class="count-badge">@Model.Records.Count kayıt</span></div>
     @if(Model.IsAdmin){<partial name="Shared/_RecordFilter" model="Model.Filter"/>}
-    <div class="table-wrap completed-table-wrap"><table class="data-table"><thead><tr><th>Parti</th><th>Tarih</th><th>Havuz</th><th>Menşei · Ürün</th><th>İşi yapanlar</th><th>Silo</th><th class="num">Çekilen</th><th class="num">Süre</th>@if(Model.IsAdmin){<th></th>}</tr></thead><tbody>
-    @foreach(var x in Model.Records){<tr><td><strong>@x.PartiNo</strong></td><td>@x.SoymaBitisi.ToString("dd.MM.yyyy HH:mm")</td><td>@(x.HavuzNo??"—")</td><td>@x.Mensei<br/><small>@x.Urun</small></td><td><small>Hazırlık:</small> @(x.Hazirlayan??"—")<br/><small>Islama:</small> @(x.IslamaPersoneli??"—")<br/><small>Soyma:</small> @(x.SoymaPersoneli??"—")</td><td>@(x.Silo??"—")</td><td class="num"><strong>@x.CekilenTonajKg.ToString("0.###") kg</strong></td><td class="num">@x.SoymaSuresiDakika dk</td>@if(Model.IsAdmin){<td><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></td>}</tr>}
-    @if(Model.Records.Count==0){<tr><td colspan="9" class="empty">Henüz tamamlanan kayıt bulunmuyor.</td></tr>}
+    <div class="table-wrap completed-table-wrap"><table class="data-table"><thead><tr><th>Parti</th><th>Tarih</th><th>Havuz</th><th class="num">Salamura</th><th class="num">Yedek</th><th>Menşei · Ürün</th><th>İşi yapanlar</th><th>Silo</th><th class="num">Çekilen</th><th class="num">Süre</th>@if(Model.IsAdmin){<th></th>}</tr></thead><tbody>
+    @foreach(var x in Model.Records){<tr><td><strong>@x.PartiNo</strong></td><td>@x.SoymaBitisi.ToString("dd.MM.yyyy HH:mm")</td><td>@(x.HavuzNo??"—")</td><td class="num">@(x.SalamuraDerecesi?.ToString("0.##")??"—")</td><td class="num">@(x.YedekDerecesi?.ToString("0.##")??"—")</td><td>@x.Mensei<br/><small>@x.Urun</small></td><td><small>Hazırlık:</small> @(x.Hazirlayan??"—")<br/><small>Islama:</small> @(x.IslamaPersoneli??"—")<br/><small>Soyma:</small> @(x.SoymaPersoneli??"—")</td><td>@(x.Silo??"—")</td><td class="num"><strong>@x.CekilenTonajKg.ToString("0.###") kg</strong></td><td class="num">@x.SoymaSuresiDakika dk</td>@if(Model.IsAdmin){<td><form method="post" asp-page-handler="Delete" onsubmit="return confirm('Bu kayıt silinsin mi?');"><input type="hidden" name="id" value="@x.Id"/><button class="action-delete">Sil</button></form></td>}</tr>}
+    @if(Model.Records.Count==0){<tr><td colspan="11" class="empty">Henüz tamamlanan kayıt bulunmuyor.</td></tr>}
     </tbody></table></div>
 </section>
 
@@ -36,7 +36,7 @@
     {
     <div class="data-section stage-description">
         <div class="section-head"><div><h2>Nöbet aşaması</h2><p>Yeni partinin ilk kaydı burada oluşturulur</p></div><span class="count-badge">1. aşama</span></div>
-        <div class="stage-description-body"><strong>Girilecek bilgiler</strong><span>Parti numarası otomatik oluşturulur.</span><span>Nöbet tarihi, ıslama tarihi ve havuz numarası kaydedilir.</span><span>Kayıt tamamlanınca Bekleyen Islama kuyruğuna geçer.</span></div>
+        <div class="stage-description-body"><strong>Girilecek bilgiler</strong><span>Parti numarası otomatik oluşturulur.</span><span>Nöbet tarihi, ıslama tarihi, ekran tonajı ve çekilen tonaj kaydedilir.</span><span>Kayıt tamamlanınca Bekleyen Islama kuyruğuna geçer.</span></div>
     </div>
     }
     @if(stage=="islama")
@@ -47,7 +47,7 @@
         @foreach(var x in bekleyenIslama)
         {
             <article class="workflow-card stage-1">
-                <header><div><strong>@x.PartiNo</strong><small>Havuz @x.HavuzNo</small></div><span>Islama bekliyor</span></header>
+                <header><div><strong>@x.PartiNo</strong><small>Çekilen @x.CekilenTonajKg?.ToString("0.###") kg</small></div><span>Islama bekliyor</span></header>
                 <dl><div><dt>Nöbet</dt><dd>@x.NobetTarihi.ToString("dd.MM.yyyy")</dd></div><div><dt>Islama tarihi</dt><dd>@x.IslamaTarihi.ToString("dd.MM.yyyy")</dd></div></dl>
                 <a class="btn-primary-app" asp-route-workId="@x.Id">Islama bilgisi gir</a>
             </article>
@@ -64,7 +64,7 @@
         @foreach(var x in bekleyenSoyma)
         {
             <article class="workflow-card stage-2">
-                <header><div><strong>@x.PartiNo</strong><small>Havuz @x.HavuzNo</small></div><span>Soyma bekliyor</span></header>
+                <header><div><strong>@x.PartiNo</strong><small>@(string.IsNullOrWhiteSpace(x.HavuzNo)?"Havuz bilgisi bekliyor":$"Havuz {x.HavuzNo}")</small></div><span>Soyma bekliyor</span></header>
                 <dl><div><dt>Nöbet</dt><dd>@x.NobetTarihi.ToString("dd.MM.yyyy")</dd></div><div><dt>Islama</dt><dd>@x.IslamaBaslangici?.ToString("dd.MM HH:mm") – @x.IslamaBitisi?.ToString("dd.MM HH:mm")</dd></div></dl>
                 <a class="btn-primary-app" asp-route-workId="@x.Id">Soyma bilgisi gir</a>
             </article>
@@ -88,7 +88,7 @@
         </div>
         <label>Islama tarihi<input asp-for="Hazirlik.IslamaTarihi" type="date"/></label>
         <label>Ürün menşei<select asp-for="Hazirlik.MenseiId"><option value="">Seçin</option>@foreach(var x in Model.Menseiler){<option value="@x.Id">@x.Name</option>}</select></label>
-        <label>Havuz numarası<input asp-for="Hazirlik.HavuzNo" placeholder="Örn. 3" autocomplete="off"/></label>
+        <div class="field-row"><label>Ekran tonajı <span>kg</span><input asp-for="Hazirlik.EkranTonajiKg" type="number" step="0.001"/></label><label>Çekilen tonaj <span>kg</span><input asp-for="Hazirlik.CekilenTonajKg" type="number" step="0.001"/></label></div>
         <button class="btn-primary-app full">Nöbet kaydını oluştur ve ıslamaya gönder</button>
     </form>
 }
@@ -118,9 +118,11 @@ else if(stage=="soyma" && Model.SelectedWork?.Asama==2)
         @if(!Model.SelectedWork.HamSusamGelisTarihi.HasValue){<label>Ham susam geliş tarihi <span>Eski bekleyen kayıt için tamamlayın</span><input asp-for="Soyma.HamSusamGelisTarihi" type="date"/></label>}
         @if(!Model.SelectedWork.MenseiId.HasValue){<label>Ürün menşei <span>Eski bekleyen kayıt için tamamlayın</span><select asp-for="Soyma.MenseiId"><option value="">Seçin</option>@foreach(var x in Model.Menseiler){<option value="@x.Id">@x.Name</option>}</select></label>}
         <label>Ürün cinsi<select asp-for="Soyma.UrunId"><option value="">Seçin</option>@foreach(var x in Model.Urunler){<option value="@x.Id">@x.Name</option>}</select></label>
+        <label>Havuz numarası<input asp-for="Soyma.HavuzNo" placeholder="Örn. 3" autocomplete="off"/></label>
+        <div class="field-row"><label>Salamura derecesi<input asp-for="Soyma.SalamuraDerecesi" type="number" min="0" step="0.01"/></label><label>Yedek derecesi<input asp-for="Soyma.YedekDerecesi" type="number" min="0" step="0.01"/></label></div>
         <div class="field-row"><label>Silo 1<input asp-for="Soyma.Silo1" maxlength="2" placeholder="A1"/></label><label>Silo 2<input asp-for="Soyma.Silo2" maxlength="2" placeholder="B1"/></label></div>
-        <div class="field-row"><label>Çöp <span>kg</span><input asp-for="Soyma.CopKg" type="number" step="0.001"/></label><label>Ekran tonajı <span>kg</span><input asp-for="Soyma.EkranTonajiKg" type="number" step="0.001"/></label></div>
-        <label>Çekilen tonaj <span>kg</span><input asp-for="Soyma.CekilenTonajKg" type="number" step="0.001"/></label>
+        <label>Çöp <span>kg</span><input asp-for="Soyma.CopKg" type="number" step="0.001"/></label>
+        @if(!Model.SelectedWork.EkranTonajiKg.HasValue||!Model.SelectedWork.CekilenTonajKg.HasValue){<div class="field-row"><label>Ekran tonajı <span>Eski kayıt · kg</span><input asp-for="Soyma.EkranTonajiKg" type="number" step="0.001"/></label><label>Çekilen tonaj <span>Eski kayıt · kg</span><input asp-for="Soyma.CekilenTonajKg" type="number" step="0.001"/></label></div>}
         <label>Açıklama<textarea asp-for="Soyma.Aciklama" rows="2"></textarea></label>
         <div class="form-actions"><a class="btn-secondary-app" asp-page="/Islama">İptal</a><button class="btn-primary-app">Soymayı tamamla</button></div>
     </form>
