@@ -131,7 +131,8 @@ public sealed record PaketlemeListItem(
 
 public sealed record DolumListItem(
     long Id, DateTime? Tarih, string? PartiNo, string Ambalaj,
-    decimal MiktarKg, int Adet, decimal? FireKg, string? Mensei, string? Tank);
+    decimal MiktarKg, int Adet, decimal? TahinFiresiKg, int? AmbalajFiresiAdet,
+    string? Mensei, string? Tank);
 
 public sealed record KepekListItem(
     long Id, DateTime? Tarih, string? PartiNo, decimal MiktarKg,
@@ -220,7 +221,8 @@ public sealed class DolumInput
     [Required, DataType(DataType.Date)] public DateTime? Tarih { get; set; } = DateTime.Today;
     [Range(1, int.MaxValue)] public int AmbalajId { get; set; }
     [Range(1, int.MaxValue)] public int PaketlemeAdedi { get; set; }
-    [Required, Range(0, 999999999)] public decimal? FireKg { get; set; }
+    [Required, Range(0, 999999999)] public decimal? TahinFiresiKg { get; set; }
+    [Required, Range(0, 1000000)] public int? AmbalajFiresiAdet { get; set; }
     [Required, Range(1,int.MaxValue)] public int? MenseiId { get; set; }
     [Required, StringLength(100)] public string? Tank { get; set; }
     [StringLength(200)] public string? Personel { get; set; }
