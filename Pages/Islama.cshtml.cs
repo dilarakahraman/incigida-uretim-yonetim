@@ -20,6 +20,7 @@ public sealed class IslamaModel(SusamRepository repository) : PageModel
     public List<IslamaWorkflowItem> Workflow { get; private set; }=[];
     public IslamaWorkflowItem? SelectedWork { get; private set; }
     public List<IslamaListItem> Records { get; private set; }=[];
+    public bool HasNextPage { get; private set; }
     public List<LookupItem> Menseiler { get; private set; }=[];
     public List<LookupItem> Urunler { get; private set; }=[];
     public string? ErrorMessage { get; private set; }
@@ -110,7 +111,9 @@ public sealed class IslamaModel(SusamRepository repository) : PageModel
         try
         {
             Workflow=await repository.GetIslamaWorkflowAsync();
-            Records=await repository.GetIslamaAsync(filter:Filter,personnelId:null);
+            Records=await repository.GetIslamaAsync(Filter.ValidPageSize+1,filter:Filter,personnelId:null,skip:Filter.Offset);
+            HasNextPage=Records.Count>Filter.ValidPageSize;
+            if(HasNextPage)Records.RemoveAt(Records.Count-1);
             Menseiler=await repository.GetMenseilerAsync();
             Urunler=await repository.GetUrunlerAsync();
             if(WorkId is > 0)SelectedWork??=await repository.GetIslamaWorkflowItemAsync(WorkId.Value);
