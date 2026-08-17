@@ -1057,10 +1057,10 @@ public sealed class SusamRepository(IConfiguration configuration)
         return items;
     }
 
-    public async Task<List<IslamaListItem>> GetIslamaAsync(int take = 100, RecordFilter? filter = null,int? personnelId=null,bool onlyCreatedToday=false)
+    public async Task<List<IslamaListItem>> GetIslamaAsync(int take = 100, RecordFilter? filter = null,int? personnelId=null,bool onlyCreatedToday=false,int skip=0)
     {
         const string sql = """
-            SELECT TOP (@Take) I.IslamaSoymaKaydiId,I.PartiNo,I.SoymaBitisi,I.SoymaSuresiDakika,
+            SELECT I.IslamaSoymaKaydiId,I.PartiNo,I.SoymaBitisi,I.SoymaSuresiDakika,
                    I.CekilenTonajKg,I.CopKg,M.Ad,U.Ad,COALESCE(NULLIF(CONCAT(I.Silo1,' ',I.Silo2),' '),S.Kod),
                    I.HavuzNo,I.SalamuraDerecesi,I.YedekDerecesi,HP.AdSoyad,IP.AdSoyad,SP.AdSoyad
             FROM uretim.IslamaSoymaKaydi I
@@ -1075,11 +1075,11 @@ public sealed class SusamRepository(IConfiguration configuration)
               AND (@OnlyCreatedToday=0 OR CONVERT(date,I.OlusturmaZamani)=CONVERT(date,GETDATE()))
               AND (@From IS NULL OR I.SoymaBitisi >= @From)
               AND (@To IS NULL OR I.SoymaBitisi < DATEADD(DAY,1,@To))
-            ORDER BY I.SoymaBitisi DESC,I.IslamaSoymaKaydiId DESC;
+            ORDER BY I.SoymaBitisi DESC,I.IslamaSoymaKaydiId DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
             """;
         var result = new List<IslamaListItem>();
         await using var connection = CreateConnection(); await connection.OpenAsync();
-        await using var command = new SqlCommand(sql, connection); command.Parameters.AddWithValue("@Take", take); AddFilterParameters(command, filter);Add(command.Parameters,"@PersonnelId",personnelId);command.Parameters.AddWithValue("@OnlyCreatedToday",onlyCreatedToday);
+        await using var command = new SqlCommand(sql, connection); command.Parameters.AddWithValue("@Take", take);command.Parameters.AddWithValue("@Skip",Math.Max(0,skip)); AddFilterParameters(command, filter);Add(command.Parameters,"@PersonnelId",personnelId);command.Parameters.AddWithValue("@OnlyCreatedToday",onlyCreatedToday);
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
             result.Add(new(reader.GetInt64(0),reader.GetString(1),reader.GetDateTime(2),reader.GetInt32(3),reader.GetDecimal(4),
@@ -1234,20 +1234,20 @@ public sealed class SusamRepository(IConfiguration configuration)
         return ProductionBatch.Format(date,sequence);
     }
 
-    public async Task<List<KavurmaListItem>> GetKavurmaAsync(int take = 100, RecordFilter? filter = null,int? personnelId=null)
+    public async Task<List<KavurmaListItem>> GetKavurmaAsync(int take = 100, RecordFilter? filter = null,int? personnelId=null,int skip=0)
     {
         const string sql = """
-            SELECT TOP (@Take) K.KavurmaKaydiId,K.Tarih,K.PartiNo,K.NetTonajKg,P.AdSoyad,K.KepekKg,K.TavaSayisi,U.Ad,
+            SELECT K.KavurmaKaydiId,K.Tarih,K.PartiNo,K.NetTonajKg,P.AdSoyad,K.KepekKg,K.TavaSayisi,U.Ad,
                    K.KavurmaSicakligi,K.NisastaKg
             FROM uretim.KavurmaKaydi K LEFT JOIN tanim.Personel P ON P.PersonelId=K.PersonelId
             LEFT JOIN tanim.Urun U ON U.UrunId=K.UrunId
             WHERE (@Like IS NULL OR K.PartiNo LIKE @Like OR P.AdSoyad LIKE @Like OR U.Ad LIKE @Like)
               AND (@PersonnelId IS NULL OR K.PersonelId=@PersonnelId)
               AND (@From IS NULL OR K.Tarih >= @From) AND (@To IS NULL OR K.Tarih <= @To)
-            ORDER BY K.KavurmaKaydiId DESC;
+            ORDER BY K.KavurmaKaydiId DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
             """;
         var result = new List<KavurmaListItem>();
-        await using var c=CreateConnection(); await c.OpenAsync(); await using var cmd=new SqlCommand(sql,c); cmd.Parameters.AddWithValue("@Take",take); AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);
+        await using var c=CreateConnection(); await c.OpenAsync(); await using var cmd=new SqlCommand(sql,c); cmd.Parameters.AddWithValue("@Take",take);cmd.Parameters.AddWithValue("@Skip",Math.Max(0,skip)); AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);
         await using var r=await cmd.ExecuteReaderAsync(); while(await r.ReadAsync()) result.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetDecimal(3),S(r,4),D<decimal>(r,5),D<int>(r,6),S(r,7),D<decimal>(r,8),D<decimal>(r,9)));
         return result;
     }
@@ -1259,18 +1259,18 @@ public sealed class SusamRepository(IConfiguration configuration)
         VALUES(@Tarih,@Parti,@Ekran,@Net,@Sicaklik,@Nisasta,@Personel,@Kepek,@Tava,@Arizali,@Cikan,@Eklenen,@Mensei,@Urun,@OrtVerim,@Verim,@Aciklama,SUSER_SNAME());
         """, p => { Add(p,"@Tarih",x.Tarih); Add(p,"@Parti",x.PartiNo); Add(p,"@Ekran",x.EkranTonajiKg); Add(p,"@Net",x.NetTonajKg); Add(p,"@Sicaklik",x.KavurmaSicakligi); Add(p,"@Nisasta",x.NisastaKg); Add(p,"@Personel",x.PersonelId); Add(p,"@Kepek",x.KepekKg); Add(p,"@Tava",x.TavaSayisi); Add(p,"@Arizali",x.ArizaliTavaSayisi); Add(p,"@Cikan",x.CikanSorteksAltiKg); Add(p,"@Eklenen",x.EklenenSorteksAltiKg); Add(p,"@Mensei",x.MenseiId); Add(p,"@Urun",x.UrunId); Add(p,"@OrtVerim",x.OrtalamaVerimOrani); Add(p,"@Verim",x.VerimOrani); Add(p,"@Aciklama",x.Aciklama); });
 
-    public async Task<List<PaketlemeListItem>> GetPaketlemeAsync(int take=100, RecordFilter? filter=null,int? personnelId=null)
+    public async Task<List<PaketlemeListItem>> GetPaketlemeAsync(int take=100, RecordFilter? filter=null,int? personnelId=null,int skip=0)
     {
-        const string sql="""SELECT TOP (@Take) P.PaketlemeKaydiId,P.Tarih,P.PartiNo,P.AmbalajAgirligiKg*P.Adet,P.AmbalajAgirligiKg,P.Adet,P.FireKg,U.Ad,PE.AdSoyad FROM uretim.PaketlemeKaydi P LEFT JOIN tanim.Urun U ON U.UrunId=P.UrunId LEFT JOIN tanim.Personel PE ON PE.PersonelId=P.PersonelId WHERE (@Like IS NULL OR P.PartiNo LIKE @Like OR U.Ad LIKE @Like OR PE.AdSoyad LIKE @Like) AND (@PersonnelId IS NULL OR P.PersonelId=@PersonnelId) AND (@From IS NULL OR P.Tarih>=@From) AND (@To IS NULL OR P.Tarih<=@To) ORDER BY P.PaketlemeKaydiId DESC;""";
-        var list=new List<PaketlemeListItem>(); await using var c=CreateConnection(); await c.OpenAsync(); await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Take",take);AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);await using var r=await cmd.ExecuteReaderAsync();while(await r.ReadAsync())list.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetDecimal(3),r.GetDecimal(4),r.GetInt32(5),D<decimal>(r,6),S(r,7),S(r,8)));return list;
+        const string sql="""SELECT P.PaketlemeKaydiId,P.Tarih,P.PartiNo,P.AmbalajAgirligiKg*P.Adet,P.AmbalajAgirligiKg,P.Adet,P.FireKg,U.Ad,PE.AdSoyad FROM uretim.PaketlemeKaydi P LEFT JOIN tanim.Urun U ON U.UrunId=P.UrunId LEFT JOIN tanim.Personel PE ON PE.PersonelId=P.PersonelId WHERE (@Like IS NULL OR P.PartiNo LIKE @Like OR U.Ad LIKE @Like OR PE.AdSoyad LIKE @Like) AND (@PersonnelId IS NULL OR P.PersonelId=@PersonnelId) AND (@From IS NULL OR P.Tarih>=@From) AND (@To IS NULL OR P.Tarih<=@To) ORDER BY P.PaketlemeKaydiId DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;""";
+        var list=new List<PaketlemeListItem>(); await using var c=CreateConnection(); await c.OpenAsync(); await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Take",take);cmd.Parameters.AddWithValue("@Skip",Math.Max(0,skip));AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);await using var r=await cmd.ExecuteReaderAsync();while(await r.ReadAsync())list.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetDecimal(3),r.GetDecimal(4),r.GetInt32(5),D<decimal>(r,6),S(r,7),S(r,8)));return list;
     }
 
     public Task InsertPaketlemeAsync(PaketlemeInput x)=>ExecuteAsync("""INSERT uretim.PaketlemeKaydi(Tarih,PartiNo,AmbalajAgirligiKg,Adet,CikanSorteksAltiKg,FireKg,MenseiId,UrunId,SorteksAltiOrani,PersonelId,Aciklama,VerimOrani,Olusturan) VALUES(@Tarih,@Parti,@Agirlik,@Adet,@SorteksKg,@Fire,@Mensei,@Urun,@SorteksOran,@Personel,@Aciklama,@Verim,SUSER_SNAME());""",p=>{Add(p,"@Tarih",x.Tarih);Add(p,"@Parti",x.PartiNo);Add(p,"@Agirlik",x.AmbalajAgirligiKg);Add(p,"@Adet",x.Adet);Add(p,"@SorteksKg",x.CikanSorteksAltiKg);Add(p,"@Fire",x.FireKg);Add(p,"@Mensei",x.MenseiId);Add(p,"@Urun",x.UrunId);Add(p,"@SorteksOran",x.SorteksAltiOrani);Add(p,"@Personel",x.PersonelId);Add(p,"@Aciklama",x.Aciklama);Add(p,"@Verim",x.VerimOrani);});
 
-    public async Task<List<DolumListItem>> GetDolumAsync(int take=100, RecordFilter? filter=null,int? personnelId=null)
+    public async Task<List<DolumListItem>> GetDolumAsync(int take=100, RecordFilter? filter=null,int? personnelId=null,int skip=0)
     {
-        const string sql="""SELECT TOP (@Take) D.DolumKaydiId,D.Tarih,NULL,CONCAT(D.AmbalajCinsi,' ',FORMAT(D.AmbalajKg,'0.###'),' kg'),D.PaketlemeMiktariKg,D.PaketlemeAdedi,COALESCE(D.TahinFiresiKg,D.FireKg),D.AmbalajFiresiAdet,M.Ad,D.Tank FROM uretim.DolumKaydi D LEFT JOIN tanim.Mensei M ON M.MenseiId=D.MenseiId WHERE (@Like IS NULL OR D.AmbalajCinsi LIKE @Like OR D.Personel LIKE @Like OR D.Tank LIKE @Like OR M.Ad LIKE @Like) AND (@PersonnelId IS NULL OR D.PersonelId=@PersonnelId) AND (@From IS NULL OR D.Tarih>=@From) AND (@To IS NULL OR D.Tarih<=@To) ORDER BY D.DolumKaydiId DESC;""";
-        var list=new List<DolumListItem>();await using var c=CreateConnection();await c.OpenAsync();await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Take",take);AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);await using var r=await cmd.ExecuteReaderAsync();while(await r.ReadAsync())list.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetString(3),r.GetDecimal(4),r.GetInt32(5),D<decimal>(r,6),D<int>(r,7),S(r,8),S(r,9)));return list;
+        const string sql="""SELECT D.DolumKaydiId,D.Tarih,NULL,CONCAT(D.AmbalajCinsi,' ',FORMAT(D.AmbalajKg,'0.###'),' kg'),D.PaketlemeMiktariKg,D.PaketlemeAdedi,COALESCE(D.TahinFiresiKg,D.FireKg),D.AmbalajFiresiAdet,M.Ad,D.Tank FROM uretim.DolumKaydi D LEFT JOIN tanim.Mensei M ON M.MenseiId=D.MenseiId WHERE (@Like IS NULL OR D.AmbalajCinsi LIKE @Like OR D.Personel LIKE @Like OR D.Tank LIKE @Like OR M.Ad LIKE @Like) AND (@PersonnelId IS NULL OR D.PersonelId=@PersonnelId) AND (@From IS NULL OR D.Tarih>=@From) AND (@To IS NULL OR D.Tarih<=@To) ORDER BY D.DolumKaydiId DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;""";
+        var list=new List<DolumListItem>();await using var c=CreateConnection();await c.OpenAsync();await using var cmd=new SqlCommand(sql,c);cmd.Parameters.AddWithValue("@Take",take);cmd.Parameters.AddWithValue("@Skip",Math.Max(0,skip));AddFilterParameters(cmd,filter);Add(cmd.Parameters,"@PersonnelId",personnelId);await using var r=await cmd.ExecuteReaderAsync();while(await r.ReadAsync())list.Add(new(r.GetInt64(0),D<DateTime>(r,1),S(r,2),r.GetString(3),r.GetDecimal(4),r.GetInt32(5),D<decimal>(r,6),D<int>(r,7),S(r,8),S(r,9)));return list;
     }
 
     public Task InsertDolumAsync(DolumInput x)=>ExecuteAsync("""
