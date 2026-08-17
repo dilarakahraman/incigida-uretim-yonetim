@@ -249,7 +249,7 @@ public sealed class ExcelExportService
         var kepekHeader = FindRow(sheet, 13, "Tarih", kepekTitle);
         var lastRow = Math.Max(sheet.LastRowUsed()?.RowNumber() ?? 120, kepekHeader + 8);
 
-        sheet.Range(islamaHeader + 1, 1, kavurmaTitle - 1, 19).Clear(XLClearOptions.Contents);
+        sheet.Range(islamaHeader + 1, 1, kavurmaTitle - 1, 21).Clear(XLClearOptions.Contents);
         for (var row = islamaHeader + 1; row < kavurmaTitle; row++)
         {
             sheet.Cell(row, 10).FormulaA1 = $"IFERROR((I{row}-H{row})*1440,\"\")";
@@ -257,7 +257,7 @@ public sealed class ExcelExportService
             sheet.Cell(row, 17).FormulaA1 = $"IF(M{row}=\"\",\"\",M{row})";
         }
 
-        sheet.Range(kavurmaTitle + 2, 1, paketlemeTitle - 1, 14).Clear(XLClearOptions.Contents);
+        sheet.Range(kavurmaTitle + 2, 1, paketlemeTitle - 1, 17).Clear(XLClearOptions.Contents);
         for (var row = kavurmaTitle + 2; row < paketlemeTitle; row++)
         {
             sheet.Cell(row, 13).FormulaA1 = $"IFERROR(C{row}/E{row},\"\")";
@@ -284,8 +284,8 @@ public sealed class ExcelExportService
         var boundary = FindRow(sheet, 1, "KAVURMA TABLOSU");
         var headers = new[]{"Havuz No","Islama Tarihi","Islama Başlangıç - Bitiş","Soyma Başlangıcı",
             "Soyma Bitişi","Soyma Süresi (dk)","Saatlik Tonaj","Ekran Tonajı","Çekilen Tonaj",
-            "Silo","Menşei","Ürün","Net Tonaj","Açıklama"};
-        for(var column=6;column<=19;column++)sheet.Cell(header,column).Value=headers[column-6];
+            "Silo","Menşei","Ürün","Net Tonaj","Açıklama","Salamura Derecesi","Yedek Derecesi"};
+        for(var column=6;column<=21;column++)sheet.Cell(header,column).Value=headers[column-6];
         var row = existingRow ?? NextRowBefore(sheet, header + 1, boundary, r => HasValue(sheet.Cell(r, 4)));
         Set(sheet.Cell(row, 1), item.BarkodSeri);
         SetDate(sheet.Cell(row, 2), item.HamSusamGelisTarihi, "dd.MM.yyyy");
@@ -306,6 +306,8 @@ public sealed class ExcelExportService
         sheet.Cell(row, 17).Value = item.Urun;
         sheet.Cell(row, 18).FormulaA1 = $"N{row}";
         Set(sheet.Cell(row,19),item.Aciklama);
+        Set(sheet.Cell(row,20),item.SalamuraDerecesi);
+        Set(sheet.Cell(row,21),item.YedekDerecesi);
         return row;
     }
 
@@ -314,6 +316,8 @@ public sealed class ExcelExportService
         var title = FindRow(sheet, 1, "KAVURMA TABLOSU");
         var packetTitle = FindRow(sheet, 1, "PAKETLEME TABLOSU");
         sheet.Cell(title+1,15).Value="Açıklama";
+        sheet.Cell(title+1,16).Value="Kavurma Sıcaklığı (°C)";
+        sheet.Cell(title+1,17).Value="Nişasta (kg)";
         var boundary = FindFormulaRow(sheet, 3, "SUM(", title, packetTitle) ?? packetTitle;
         var row = existingRow ?? NextRowBefore(sheet, title + 2, boundary, r => HasValue(sheet.Cell(r, 3)));
         Set(sheet.Cell(row, 1), item.PartiNo);
@@ -331,6 +335,8 @@ public sealed class ExcelExportService
         sheet.Cell(row, 13).FormulaA1 = $"IFERROR(C{row}/E{row},\"\")";
         sheet.Cell(row, 14).FormulaA1 = $"C{row}";
         Set(sheet.Cell(row,15),item.Aciklama);
+        Set(sheet.Cell(row,16),item.KavurmaSicakligi);
+        Set(sheet.Cell(row,17),item.NisastaKg);
         return row;
     }
 
@@ -410,8 +416,8 @@ public sealed class ExcelExportService
     {
         var (first, last) = table switch
         {
-            "Islama" => (1,19),
-            "Kavurma" => (1,15),
+            "Islama" => (1,21),
+            "Kavurma" => (1,17),
             "Paketleme" => (1,11),
             "Dolum" => (13,22),
             "Kepek" => (13,21),
@@ -576,7 +582,7 @@ public sealed class ExcelExportService
         const string sql = """
             SELECT I.IslamaSoymaKaydiId,I.BarkodSeri,I.HamSusamGelisTarihi,I.CopKg,I.PartiNo,I.NobetTarihi,I.HavuzNo,
                    I.IslamaBaslangici,I.IslamaBitisi,I.SoymaBaslangici,I.SoymaBitisi,I.EkranTonajiKg,I.CekilenTonajKg,
-                   COALESCE(NULLIF(CONCAT(I.Silo1,' ',I.Silo2),' '),S.Kod),M.Ad,U.Ad,I.Aciklama
+                   COALESCE(NULLIF(CONCAT(I.Silo1,' ',I.Silo2),' '),S.Kod),M.Ad,U.Ad,I.Aciklama,I.SalamuraDerecesi,I.YedekDerecesi
             FROM uretim.IslamaSoymaKaydi I
             JOIN tanim.Mensei M ON M.MenseiId=I.MenseiId JOIN tanim.Urun U ON U.UrunId=I.UrunId
             LEFT JOIN tanim.Silo S ON S.SiloId=I.SiloId
@@ -587,7 +593,7 @@ public sealed class ExcelExportService
             """;
         var list = new List<IslamaExportRow>();
         await using var command = DateCommand(sql, connection, from, end); await using var r = await command.ExecuteReaderAsync(ct);
-        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),S(r,1),D<DateTime>(r,2),D<decimal>(r,3),r.GetString(4),D<DateTime>(r,5),S(r,6),D<DateTime>(r,7),D<DateTime>(r,8),r.GetDateTime(9),r.GetDateTime(10),D<decimal>(r,11),r.GetDecimal(12),S(r,13),r.GetString(14),r.GetString(15),S(r,16)));
+        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),S(r,1),D<DateTime>(r,2),D<decimal>(r,3),r.GetString(4),D<DateTime>(r,5),S(r,6),D<DateTime>(r,7),D<DateTime>(r,8),r.GetDateTime(9),r.GetDateTime(10),D<decimal>(r,11),r.GetDecimal(12),S(r,13),r.GetString(14),r.GetString(15),S(r,16),D<decimal>(r,17),D<decimal>(r,18)));
         return list;
     }
 
@@ -595,7 +601,7 @@ public sealed class ExcelExportService
     {
         const string sql = """
             SELECT K.KavurmaKaydiId,COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani)),K.PartiNo,K.EkranTonajiKg,K.NetTonajKg,
-                   P.AdSoyad,K.TavaSayisi,K.ArizaliTavaSayisi,K.CikanSorteksAltiKg,K.EklenenSorteksAltiKg,M.Ad,U.Ad,K.OrtalamaVerimOrani,K.VerimOrani,K.Aciklama
+                   P.AdSoyad,K.TavaSayisi,K.ArizaliTavaSayisi,K.CikanSorteksAltiKg,K.EklenenSorteksAltiKg,M.Ad,U.Ad,K.OrtalamaVerimOrani,K.VerimOrani,K.Aciklama,K.KavurmaSicakligi,K.NisastaKg
             FROM uretim.KavurmaKaydi K LEFT JOIN tanim.Personel P ON P.PersonelId=K.PersonelId
             LEFT JOIN tanim.Mensei M ON M.MenseiId=K.MenseiId LEFT JOIN tanim.Urun U ON U.UrunId=K.UrunId
             WHERE K.KaynakSayfa IS NULL AND COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani))>=@From AND COALESCE(K.Tarih,CONVERT(date,K.OlusturmaZamani))<@End
@@ -605,7 +611,7 @@ public sealed class ExcelExportService
             """;
         var list = new List<KavurmaExportRow>();
         await using var command = DateCommand(sql, connection, from, end); await using var r = await command.ExecuteReaderAsync(ct);
-        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),r.GetDateTime(1),S(r,2),D<decimal>(r,3),r.GetDecimal(4),S(r,5),D<int>(r,6),D<int>(r,7),D<decimal>(r,8),D<decimal>(r,9),S(r,10),S(r,11),D<decimal>(r,12),D<decimal>(r,13),S(r,14)));
+        while (await r.ReadAsync(ct)) list.Add(new(r.GetInt64(0),r.GetDateTime(1),S(r,2),D<decimal>(r,3),r.GetDecimal(4),S(r,5),D<int>(r,6),D<int>(r,7),D<decimal>(r,8),D<decimal>(r,9),S(r,10),S(r,11),D<decimal>(r,12),D<decimal>(r,13),S(r,14),D<decimal>(r,15),D<decimal>(r,16)));
         return list;
     }
 
